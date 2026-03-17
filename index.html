@@ -498,7 +498,7 @@
                         Invent<span>o</span>ry Deskb<span>o</span>ard</h2>
                     <span class="bg-slate-800 text-slate-400 text-xs px-2 py-1 rounded border border-white/5"
                         id="total-count">0 Items</span>
- <div
+                    <div
                         class="px-2 py-1 rounded border flex items-center gap-1.5 transition-all bg-blue-600/10 text-blue-400 border-blue-500/30">
                         <div class="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse"></div>
                         <span class="text-[10px] font-bold uppercase tracking-wider">Floor Active</span>
@@ -998,7 +998,7 @@
                 <button onclick="saveNewAsset()"
                     class="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-medium shadow-lg shadow-blue-600/20 transition-all">Save
                     Asset</button>
-  </div>
+            </div>
         </div>
     </div>
 
@@ -2888,14 +2888,14 @@
             } else {
                 fetch(GAS_API_URL, {
                     method: 'POST',
-                    body: JSON.stringify(assetData)
+                    body: JSON.stringify({ action: 'upsert', asset: assetData, role: currentUserRole })
                 })
                     .then(r => r.json())
                     .then(handleSuccess)
                     .catch(err => {
                         // Falls back to no-cors if restricted (User will see success but it's blind)
                         fetch(GAS_API_URL, {
-                            method: 'POST', body: JSON.stringify(assetData), mode:
+                            method: 'POST', body: JSON.stringify({ action: 'upsert', asset: assetData, role: currentUserRole }), mode:
                                 'no-cors'
                         })
                             .then(() => showToast('Sync Success', 'Update pushed to Cloud', 'success'))
@@ -3135,8 +3135,7 @@
             syncToSheet('UPDATE', item);
 
             closeStockPicker();
-            const catName = (currentPickerConfig && currentPickerConfig.category) ? currentPickerConfig.category : 'Asset';
-showToast('Stock Selected', 'Updated ' + catName + ' and marked item\n as IN USE', 'success');
+            showToast('Stock Selected', 'Updated ' + (currentPickerConfig.category) + ' and marked item\n                    as IN USE', 'success');
             saveAndRender();
         }
 
@@ -3194,7 +3193,7 @@ showToast('Stock Selected', 'Updated ' + catName + ' and marked item\n as IN USE
             const reader = new FileReader();
             reader.onload = function (e) {
                 const base64 = e.target.result;
-                const payload = { action: 'upload', base64: base64, fileName: fileName };
+                const payload = { action: 'uploadBill', fileBase64: base64.split(',')[1] || base64, fileName: fileName, mimeType: file.type };
                 inputEl.value = ''; // Ensure it's cleared after reading
                 const isGAS = typeof google !== 'undefined' && google.script && google.script.run;
                 const previewBtn = document.getElementById('bill-preview-btn');

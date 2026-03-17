@@ -1,0 +1,3411 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="author" content="Manish Teli">
+    <meta name="description" content="Enterprise Asset Management & Inventory ERP System">
+    <title>Envision Inventory Deskboard</title>
+    <!-- 
+        Envision Inventory ERP System
+        Developer: Manish Teli
+        Built with: HTML5, JavaScript, TailwindCSS, Electron.js
+    -->
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
+    <!-- SheetJS (Excel) -->
+    <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- jsPDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+    <style>
+        /* Base Setup */
+        body {
+            font-family: 'Outfit', sans-serif;
+            background: #0f172a;
+            /* Slate 900 */
+            color: #e2e8f0;
+            /* Slate 200 */
+            overflow-x: hidden;
+        }
+
+        /* Glassmorphism Utilities */
+        .glass {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .glass-card {
+            background: rgba(30, 41, 59, 0.4);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            transition: all 0.3s ease;
+        }
+
+        .glass-card:hover {
+            transform: translateY(-2px);
+            background: rgba(30, 41, 59, 0.6);
+            border-color: rgba(255, 255, 255, 0.15);
+            box-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.5);
+        }
+
+        /* Gradient Text */
+        .text-gradient {
+            background: linear-gradient(135deg, #60a5fa 0%, #a855f7 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #0f172a;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #475569;
+        }
+
+        /* Animations */
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .animate-fade-in {
+            animation: fadeIn 0.4s ease-out forwards;
+        }
+
+        /* Table Styles */
+        tr.asset-row {
+            transition: background-color 0.2s;
+        }
+
+        tr.asset-row:hover {
+            background-color: rgba(255, 255, 255, 0.03);
+        }
+
+        /* Badges */
+        .badge {
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            letter-spacing: 0.025em;
+        }
+
+        .badge-active {
+            background: rgba(34, 197, 94, 0.15);
+            color: #4ade80;
+            border: 1px solid rgba(34, 197, 94, 0.2);
+        }
+
+        .badge-stock {
+            background: rgba(234, 179, 8, 0.15);
+            color: #facc15;
+            border: 1px solid rgba(234, 179, 8, 0.2);
+        }
+
+        .badge-broken {
+            background: rgba(239, 68, 68, 0.15);
+            color: #f87171;
+            border: 1px solid rgba(239, 68, 68, 0.2);
+        }
+
+        /* Dropdown Styles */
+        .dropdown-content {
+            display: none;
+            position: absolute;
+            right: 0;
+            top: 80%;
+            padding-top: 20%;
+            min-width: 200px;
+            z-index: 50;
+        }
+
+        .dropdown:hover .dropdown-content {
+            display: block;
+        }
+
+        .dropdown-menu-box {
+            background: rgba(30, 41, 59, 1);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 1rem;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+            padding: 0.5rem;
+        }
+
+        .dropdown-item {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            color: #94a3b8;
+            font-size: 0.875rem;
+            transition: all 0.2s;
+            text-align: left;
+            cursor: pointer;
+        }
+
+        .dropdown-item:hover {
+            background: rgba(255, 255, 255, 0.05);
+            color: #fff;
+        }
+    </style>
+</head>
+
+<body class="min-h-screen flex flex-col relative bg-[url('https://grainy-gradients.vercel.app/noise.svg')]">
+
+    <!-- Top-Level Authentication Script & Core Config -->
+    <script>
+        window.currentUserRole = 'viewer';
+        window.GAS_API_URL = localStorage.getItem('GAS_API_URL') || 'https://script.google.com/macros/s/AKfycbyCCDIhvLac0ISmSsow64BcgkOfr3_DQB5kcmlXTSsOl3xsEJ2GBTsPRJO292HetM3SdA/exec';
+
+        // Auto-fix for common typos or legacy URLs
+        if (window.GAS_API_URL.includes('Ol3XTSsOl3') || window.GAS_API_URL.includes('AKfycbyyWDdg')) {
+            window.GAS_API_URL = 'https://script.google.com/macros/s/AKfycbyCCDIhvLac0ISmSsow64BcgkOfr3_DQB5kcmlXTSsOl3xsEJ2GBTsPRJO292HetM3SdA/exec';
+            localStorage.setItem('GAS_API_URL', window.GAS_API_URL);
+        }
+        window.isGAS = typeof google !== 'undefined' && google.script && google.script.run;
+
+        window.setCloudUrl = function (url) {
+            window.GAS_API_URL = url;
+            localStorage.setItem('GAS_API_URL', url);
+            if (typeof showToast === 'function') showToast('Config Saved', 'Cloud URL updated successfully.', 'success');
+            else alert('Config Saved!');
+        };
+
+        window.attemptLogin = function () {
+            console.log('attemptLogin triggered (Global)');
+            try {
+                const pinInput = document.getElementById('login-pin');
+                if (!pinInput) {
+                    console.error('CRITICAL: login-pin element not found in DOM');
+                    return;
+                }
+
+                const pin = pinInput.value.trim();
+                console.log('PIN entered length:', pin.length);
+
+                if (pin === '1234') {
+                    console.log('Admin Access Authorized');
+                    grantAccess('admin');
+                } else if (pin === '0000') {
+                    console.log('Viewer Access Authorized');
+                    grantAccess('viewer');
+                } else {
+                    console.warn('Invalid PIN entered');
+                    if (typeof showToast === 'function') showToast('Access Denied', 'Invalid security PIN!', 'error');
+                    else alert('Access Denied: Invalid security PIN!');
+                    pinInput.value = '';
+                    pinInput.focus();
+                }
+            } catch (err) {
+                console.error('Login process CRASHED:', err);
+                alert('Login process failed: ' + err.message);
+            }
+        };
+
+        window.grantAccess = function (roleName) {
+            const role = (roleName || 'viewer').toLowerCase();
+            console.log('GRANT ACCESS INITIATED:', role);
+            try {
+                window.currentUserRole = role;
+                const overlay = document.getElementById('login-overlay');
+                if (overlay) {
+                    overlay.style.opacity = '0';
+                    setTimeout(() => {
+                        overlay.style.display = 'none';
+                        console.log('Login overlay hidden.');
+                    }, 500);
+                }
+                if (typeof showToast === 'function') showToast('Access Granted', 'Logged in as ' + (roleName), 'success');
+                applyRoleRestrictions();
+                console.log('Role restrictions applied. Attempting initial render and pull...');
+                if (typeof renderTable === 'function') renderTable();
+                if (typeof pullFromCloud === 'function') pullFromCloud(true); // Proactive pull on login
+                console.log('Initial setup completed.');
+            } catch (err) {
+                console.error('CRITICAL ERROR IN grantAccess:', err);
+                alert('Login System Error: ' + err.message);
+            }
+        };
+
+        window.applyRoleRestrictions = function () {
+            const isAdmin = window.currentUserRole === 'admin';
+            console.log('Applying restrictions. Admin:', isAdmin);
+
+            // Sidebar buttons
+            const adminOnlyIds = ['btn-add-new', 'btn-export', 'btn-import', 'btn-reset', 'btn-settings', 'btn-copy-link', 'btn-pull', 'nav-logs', 'nav-analytics'];
+            adminOnlyIds.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) {
+                    if (isAdmin) el.classList.remove('hidden');
+                    else el.classList.add('hidden');
+                }
+            });
+
+            // Specific Header indicators
+            const roleBadge = document.getElementById('user-role-badge');
+            if (roleBadge) {
+                roleBadge.textContent = isAdmin ? 'Administrator' : 'Viewer (Read-Only)';
+                roleBadge.className = isAdmin ? 'text-[10px] font-bold text-blue-400 uppercase tracking-widest' : 'text-[10px] font-bold text-slate-500 uppercase tracking-widest';
+            }
+        };
+
+        window.logout = function () {
+            window.currentUserRole = 'viewer';
+            const pinInput = document.getElementById('login-pin');
+            if (pinInput) pinInput.value = '';
+            const overlay = document.getElementById('login-overlay');
+            if (overlay) {
+                overlay.style.display = 'flex';
+                setTimeout(() => { overlay.style.opacity = '1'; }, 10);
+            }
+            applyRoleRestrictions();
+            if (typeof showToast === 'function') showToast('Logged Out', 'Dashboard locked successfully', 'info');
+        };
+
+        // Error Catcher for lower-level scripts
+        window.onerror = function (msg, url, line, col, error) {
+            console.error('GLOBAL ERROR:', msg, 'at', url, ':', line, ':', col);
+            return false;
+        };
+    </script>
+
+    <!-- Login Overlay -->
+    <div id="login-overlay" class="fixed inset-0 z-[1000] flex items-center justify-center bg-[#0f172a]">
+        <div class="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20"></div>
+        <div class="glass p-10 rounded-3xl w-full max-w-md text-center relative z-10 animate-fade-in">
+            <div
+                class="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-xl shadow-blue-500/20">
+                <i class="ri-lock-password-line text-white text-3xl"></i>
+            </div>
+            <h1 class="text-3xl font-bold text-white mb-2">Envision Inventory Access Control</h1>
+            <p class="text-slate-400 mb-8">Enter your security PIN to unlock Envision Inventory Deskboard</p>
+
+            <div class="space-y-4">
+                <input type="password" id="login-pin" placeholder="Enter PIN"
+                    class="w-full bg-slate-900/50 border border-white/10 rounded-xl px-4 py-4 text-center text-2xl tracking-[1em] text-white focus:outline-none focus:border-blue-500 transition-all font-mono"
+                    onkeypress="if(event.key === 'Enter') attemptLogin()">
+
+                <button onclick="attemptLogin()"
+                    class="w-full bg-blue-600 hover:bg-blue-500 text-white py-4 rounded-xl font-bold shadow-lg shadow-blue-600/25 transition-all text-lg">
+                    Unlock Dashboard
+                </button>
+            </div>
+            <p class="text-[8px] text-slate-700 mt-4 uppercase tracking-widest font-bold">Secure Envision Protocol v2.0
+            </p>
+        </div>
+    </div>
+
+    <!-- Glowing Orbs Background -->
+    <div class="fixed top-0 left-0 w-full h-full overflow-hidden -z-10 pointer-events-none">
+        <div class="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-600/20 rounded-full blur-[120px]"></div>
+        <div class="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-purple-600/20 rounded-full blur-[120px]">
+        </div>
+    </div>
+
+    <!-- Main Layout -->
+    <div class="flex-1 flex flex-col md:flex-row h-screen overflow-hidden">
+
+        <!-- Sidebar -->
+        <aside class="w-full md:w-64 glass flex-shrink-0 flex flex-col z-20">
+            <div class="p-6">
+                <div class="flex items-center gap-3 mb-8">
+                    <div
+                        class="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shadow-lg shadow-blue-500/20">
+                        <i class="ri-dashboard-3-line text-white text-xl"></i>
+                    </div>
+                    <div class="flex items-center justify-center gap-0.5 px-4 py-6">
+                        <span class="text-3xl font-bold tracking-tighter text-white">Envisi</span>
+                        <div class="relative flex items-center justify-center">
+                            <div class="w-8 h-8 rounded-full border-2 border-white flex items-center justify-center">
+                                <div class="w-5 h-3 border-2 border-white rounded-full opacity-80"></div>
+                            </div>
+                        </div>
+                        <span class="text-3xl font-bold tracking-tighter text-white">n</span>
+                    </div>
+                </div>
+
+                <nav class="space-y-2">
+                    <nav class="space-y-6 pr-2">
+                        <!-- Overview -->
+                        <div class="space-y-1">
+                            <div
+                                class="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2 px-4 opacity-50">
+                                Overview</div>
+                            <button onclick="switchTab('all')" id="nav-all"
+                                class="w-full flex items-center gap-3 px-4 py-2 rounded-xl text-sm font-medium transition-all hover:bg-white/5 text-slate-400">
+                                <i class="ri-apps-line text-lg"></i> All Inventory
+                            </button>
+                            <button onclick="switchTab('active_laptop')" id="nav-active_laptop"
+                                class="w-full flex items-center justify-between px-4 py-2 rounded-xl text-sm font-medium text-slate-400 hover:text-white hover:bg-white/5 transition-all">
+                                <div class="flex items-center gap-3"><i class="ri-laptop-line text-lg"></i> IN USE:
+                                    Laptops</div>
+                                <span id="count-active_laptop" class="text-[10px] opacity-60">0</span>
+                            </button>
+                            <button onclick="switchTab('active_desktop')" id="nav-active_desktop"
+                                class="w-full flex items-center justify-between px-4 py-2 rounded-xl text-sm font-medium text-slate-400 hover:text-white hover:bg-white/5 transition-all">
+                                <div class="flex items-center gap-3"><i class="ri-desktop-line text-lg"></i> IN USE:
+                                    Desktops</div>
+                                <span id="count-active_desktop" class="text-[10px] opacity-60">0</span>
+                            </button>
+                            <button onclick="switchTab('analytics')" id="nav-analytics"
+                                class="w-full flex items-center gap-3 px-4 py-2 rounded-xl text-sm font-medium transition-all hover:bg-white/5 text-slate-400">
+                                <i class="ri-bar-chart-box-line text-lg text-purple-400"></i> Analytics
+                            </button>
+                            <button onclick="switchTab('logs')" id="nav-logs"
+                                class="w-full flex items-center gap-3 px-4 py-2 rounded-xl text-sm font-medium transition-all hover:bg-white/5 text-slate-400">
+                                <i class="ri-history-line text-lg text-blue-400"></i> Activity Logs
+                            </button>
+                            <!-- ISP Tracking -->
+                            <button onclick="switchTab('isp')" id="nav-isp"
+                                class="w-full flex items-center gap-3 px-4 py-2 rounded-xl text-sm font-medium transition-all hover:bg-white/5 text-slate-400">
+                                <i class="ri-router-line text-lg text-green-400"></i> ISP Management
+                            </button>
+                        </div>
+
+                        <!-- Deployed Peripherals (New Section) -->
+                        <div class="space-y-1">
+                            <div class="text-[10px] font-bold text-orange-500/80 uppercase tracking-widest mb-2 px-4">
+                                Deployed / Allocated</div>
+                            <button onclick="switchTab('deployed_monitor')" id="nav-deployed_monitor"
+                                class="w-full flex items-center justify-between px-4 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-white hover:bg-white/5 transition-all">
+                                <div class="flex items-center gap-2"><i class="ri-tv-line"></i> Monitors</div>
+                                <span id="count-deployed_monitor" class="text-[10px] opacity-60">0</span>
+                            </button>
+                            <button onclick="switchTab('deployed_kb')" id="nav-deployed_kb"
+                                class="w-full flex items-center justify-between px-4 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-white hover:bg-white/5 transition-all">
+                                <div class="flex items-center gap-2"><i class="ri-keyboard-line"></i> Keyboards</div>
+                                <span id="count-deployed_kb" class="text-[10px] opacity-60">0</span>
+                            </button>
+                            <button onclick="switchTab('deployed_mouse')" id="nav-deployed_mouse"
+                                class="w-full flex items-center justify-between px-4 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-white hover:bg-white/5 transition-all">
+                                <div class="flex items-center gap-2"><i class="ri-mouse-line"></i> Mouse</div>
+                                <span id="count-deployed_mouse" class="text-[10px] opacity-60">0</span>
+                            </button>
+                        </div>
+
+                        <!-- Stock Inventory -->
+                        <div class="space-y-1">
+                            <div class="text-[10px] font-bold text-blue-500/80 uppercase tracking-widest mb-2 px-4">
+                                Stock Inventory</div>
+                            <button onclick="switchTab('stock_laptop')" id="nav-stock_laptop"
+                                class="w-full flex items-center justify-between px-4 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-white hover:bg-white/5 transition-all">
+                                <div class="flex items-center gap-2"><i class="ri-macbook-line"></i> Laptops</div>
+                                <span id="count-stock_laptop" class="text-[10px] opacity-60">0</span>
+                            </button>
+                            <button onclick="switchTab('stock_desktop')" id="nav-stock_desktop"
+                                class="w-full flex items-center justify-between px-4 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-white hover:bg-white/5 transition-all">
+                                <div class="flex items-center gap-2"><i class="ri-computer-line"></i> Desktops / CPU
+                                </div>
+                                <span id="count-stock_desktop" class="text-[10px] opacity-60">0</span>
+                            </button>
+                            <button onclick="switchTab('stock_monitor')" id="nav-stock_monitor"
+                                class="w-full flex items-center justify-between px-4 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-white hover:bg-white/5 transition-all">
+                                <div class="flex items-center gap-2"><i class="ri-tv-line"></i> Monitors</div>
+                                <span id="count-stock_monitor" class="text-[10px] opacity-60">0</span>
+                            </button>
+                            <button onclick="switchTab('stock_kb')" id="nav-stock_kb"
+                                class="w-full flex items-center justify-between px-4 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-white hover:bg-white/5 transition-all">
+                                <div class="flex items-center gap-2"><i class="ri-keyboard-line"></i> Keyboards</div>
+                                <span id="count-stock_kb" class="text-[10px] opacity-60">0</span>
+                            </button>
+                            <button onclick="switchTab('stock_mouse')" id="nav-stock_mouse"
+                                class="w-full flex items-center justify-between px-4 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-white hover:bg-white/5 transition-all">
+                                <div class="flex items-center gap-2"><i class="ri-mouse-line"></i> Mouse</div>
+                                <span id="count-stock_mouse" class="text-[10px] opacity-60">0</span>
+                            </button>
+                            <button onclick="switchTab('stock_other')" id="nav-stock_other"
+                                class="w-full flex items-center justify-between px-4 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-white hover:bg-white/5 transition-all">
+                                <div class="flex items-center gap-2"><i class="ri-archive-line"></i> Others</div>
+                                <span id="count-stock_other" class="text-[10px] opacity-60">0</span>
+                            </button>
+                        </div>
+
+                        <!-- Scrap & History -->
+                        <div class="space-y-1">
+                            <div class="text-[10px] font-bold text-red-500/80 uppercase tracking-widest mb-2 px-4">
+                                Scrap & Broken</div>
+                            <button onclick="switchTab('broken')" id="nav-broken"
+                                class="w-full flex items-center justify-between px-4 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-white hover:bg-white/5 transition-all">
+                                <div class="flex items-center gap-2"><i class="ri-delete-bin-line"></i> Scrap/Broken
+                                </div>
+                                <span id="statBroken-side" class="text-[10px] opacity-60">0</span>
+                            </button>
+                        </div>
+
+                        <!-- System Diagnostics -->
+                        <div class="space-y-1 pt-4 border-t border-white/5">
+                            <div
+                                class="text-[10px] font-bold text-blue-500 uppercase tracking-widest mb-2 px-4 opacity-50">
+                                System Logs</div>
+                            <button onclick="checkBackendHealth()" id="btn-health"
+                                class="w-full flex items-center gap-3 px-4 py-2 rounded-xl text-sm font-medium transition-all hover:bg-white/5 text-slate-400">
+                                <i class="ri-pulse-line text-lg text-blue-400"></i> Check Connection
+                            </button>
+                            <button onclick="checkManifest()" id="btn-manifest"
+                                class="w-full flex items-center gap-3 px-4 py-2 rounded-xl text-sm font-medium transition-all hover:bg-white/5 text-slate-400">
+                                <i class="ri-article-line text-lg text-orange-400"></i> Setup Help
+                            </button>
+                        </div>
+
+                        <div class="pt-4 border-t border-white/5">
+                            <button id="btn-add-new" onclick="openAddModalAndReset()"
+                                class="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-medium shadow-lg shadow-blue-600/25 transition-all flex items-center justify-center gap-2 mb-3">
+                                <i class="ri-add-circle-line"></i> Add New Asset
+                            </button>
+                        </div>
+                    </nav>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="flex-1 flex flex-col relative overflow-hidden">
+
+            <!-- Topbar -->
+            <header class="h-20 glass flex items-center justify-between px-8 z-10">
+                <div class="flex items-center gap-4">
+                    <h2 class="text-xl font-semibold text-white" id="page-title">Envisi<span>o</span>n
+                        Invent<span>o</span>ry Deskb<span>o</span>ard</h2>
+                    <span class="bg-slate-800 text-slate-400 text-xs px-2 py-1 rounded border border-white/5"
+                        id="total-count">0 Items</span>
+ <div
+                        class="px-2 py-1 rounded border flex items-center gap-1.5 transition-all bg-blue-600/10 text-blue-400 border-blue-500/30">
+                        <div class="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse"></div>
+                        <span class="text-[10px] font-bold uppercase tracking-wider">Floor Active</span>
+                    </div>
+                    <button onclick="pullFromCloud()" id="btn-pull"
+                        class="hidden bg-orange-600/20 text-orange-400 text-[10px] px-2 py-1 rounded border border-orange-500/30 hover:bg-orange-600 hover:text-white transition-all flex items-center gap-1">
+                        <i class="ri-download-cloud-line"></i> Sync Data
+                    </button>
+                    <div id="user-role-badge" class="ml-4"></div>
+                </div>
+
+                <div class="flex items-center gap-6">
+                    <!-- Critical Alert Indicator -->
+                    <div id="critical-alert-indicator" class="hidden">
+                        <div class="relative group cursor-pointer" onclick="switchTab('analytics')">
+                            <i class="ri-error-warning-fill text-xl text-red-500 animate-pulse"></i>
+                            <div
+                                class="absolute top-10 right-0 w-48 p-3 bg-[#1e293b] border border-white/10 rounded-xl shadow-2xl opacity-0 group-hover:opacity-100 transition-all pointer-events-none z-[100]">
+                                <p class="text-[10px] text-red-400 font-bold uppercase tracking-widest mb-1">
+                                    Stock/System Alert</p>
+                                <p class="text-xs text-slate-300">Action required: Broken assets or low stock detected.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="relative group">
+                        <i
+                            class="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-400 transition-colors"></i>
+                        <input type="text" id="searchInput" placeholder="Search assets..."
+                            class="pl-10 pr-4 py-2 bg-slate-900/50 border border-white/10 rounded-lg text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/50 w-64 transition-all">
+                    </div>
+
+                    <div class="flex items-center gap-2">
+                        <div id="btn-settings" class="relative dropdown">
+                            <button
+                                class="flex items-center gap-3 p-1.5 pr-4 glass rounded-xl hover:bg-white/5 transition-all">
+                                <div
+                                    class="w-8 h-8 rounded-lg bg-gradient-to-br from-slate-300 to-slate-500 flex items-center justify-center shadow-lg shadow-slate-500/20">
+                                    <i class="ri-settings-4-line text-white"></i>
+                                </div>
+                                <span class="text-sm font-medium text-slate-300">System Actions</span>
+                                <i class="ri-arrow-down-s-line text-slate-500"></i>
+                            </button>
+                            <div class="dropdown-content animate-fade-in">
+                                <div class="dropdown-menu-box">
+                                    <button onclick="logout()"
+                                        class="dropdown-item rounded-lg hover:bg-red-500/10 hover:text-red-400">
+                                        <i class="ri-logout-box-line"></i> Logout
+                                    </button>
+                                    <div class="h-px bg-white/5 my-1"></div>
+                                    <button id="btn-import" onclick="document.getElementById('csvInput').click()"
+                                        class="dropdown-item rounded-lg">
+                                        <i class="ri-upload-cloud-2-line"></i> Import CSV/Excel
+                                    </button>
+                                    <button id="btn-export" onclick="exportExcel()" class="dropdown-item rounded-lg">
+                                        <i class="ri-download-cloud-2-line"></i> Export Inventory (Excel)
+                                    </button>
+                                    <button onclick="downloadPDFReport()" class="dropdown-item rounded-lg">
+                                        <i class="ri-file-pdf-line text-red-400"></i> Download PDF Report
+                                    </button>
+                                    <button onclick="openSettingsModal()" class="dropdown-item rounded-lg">
+                                        <i class="ri-settings-5-line text-blue-400"></i> Cloud Sync Settings
+                                    </button>
+                                    <div class="h-px bg-white/5 my-1"></div>
+                                    <button id="btn-reset" onclick="clearAllData()"
+                                        class="dropdown-item rounded-lg hover:bg-red-500/10 hover:text-red-400">
+                                        <i class="ri-refresh-line"></i> Reset Master Data
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <input type="file" id="csvInput" accept=".csv, .xlsx" class="hidden"
+                        onchange="handleFileSelect(this)">
+            </header>
+
+            <!-- Scrollable Content -->
+            <div class="flex-1 overflow-y-auto p-8 pb-32">
+
+                <!-- Stats Cards -->
+                <div class="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8">
+                    <!-- User Portal Card -->
+                    <div class="glass-card rounded-2xl p-0 col-span-1 md:col-span-1 relative overflow-hidden group">
+                        <div class="absolute inset-0 bg-gradient-to-b from-orange-600/10 to-transparent"></div>
+                        <div class="p-4 relative">
+                            <h3 class="font-semibold text-white text-sm mb-2">User Portal</h3>
+                            <input type="text" id="portalSearchId" placeholder="Asset ID"
+                                class="w-full px-2 py-1.5 bg-slate-900/50 border border-white/10 rounded-lg text-xs text-white placeholder-slate-500 focus:border-orange-500 outline-none uppercase transition-all mb-2">
+                            <button onclick="searchAssetPortal()"
+                                class="w-full py-1.5 bg-orange-600 hover:bg-orange-500 rounded-lg text-xs font-medium text-white transition-all shadow-lg shadow-orange-600/20 flex items-center justify-center gap-2">
+                                <i class="ri-search-eye-line"></i> Find Info
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Stat 1 -->
+                    <div class="glass-card rounded-2xl p-5">
+                        <p class="text-slate-400 text-[10px] font-bold uppercase tracking-widest mb-1">Active</p>
+                        <h3 class="text-2xl font-bold text-white flex items-center gap-2"><span id="statActive">0</span>
+                        </h3>
+                    </div>
+
+                    <!-- Stat 2 -->
+                    <div class="glass-card rounded-2xl p-5">
+                        <p class="text-slate-400 text-[10px] font-bold uppercase tracking-widest mb-1">Stock</p>
+                        <h3 class="text-2xl font-bold text-white flex items-center gap-2"><span id="statStock">0</span>
+                        </h3>
+                    </div>
+
+                    <!-- Stat 3 (ISP) -->
+                    <div class="glass-card rounded-2xl p-5 border-l-4 border-l-green-500">
+                        <p class="text-slate-400 text-[10px] font-bold uppercase tracking-widest mb-1">ISP Renewal</p>
+                        <h3 class="text-2xl font-bold text-white flex items-center justify-between">
+                            <span id="statISP">3</span>
+                            <span id="statISPAlert"
+                                class="text-[8px] bg-red-500 text-white px-1.5 py-0.5 rounded-full animate-pulse hidden">DUE</span>
+                        </h3>
+                    </div>
+
+                    <!-- Stat 4 -->
+                    <div class="glass-card rounded-2xl p-5 border-l-4 border-l-blue-500">
+                        <p class="text-slate-400 text-[10px] font-bold uppercase tracking-widest mb-1">Total Value</p>
+                        <h3 class="text-xl font-bold text-white">₹<span id="statValue">0</span></h3>
+                    </div>
+                </div>
+
+                <!-- Table View -->
+                <div id="table-view" class="glass rounded-2xl overflow-hidden min-h-[400px]">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="text-slate-400 text-xs uppercase bg-white/5 border-b border-white/5">
+                                    <th class="px-6 py-4 font-semibold tracking-wider">
+                                        <input type="checkbox" id="selectAll" onclick="toggleSelectAll(this)"
+                                            class="rounded border-white/10 bg-slate-900 text-blue-600 focus:ring-blue-500">
+                                    </th>
+                                    <th class="px-6 py-4 font-semibold tracking-wider">Asset ID</th>
+                                    <th class="px-6 py-4 font-semibold tracking-wider">Type</th>
+                                    <th class="px-6 py-4 font-semibold tracking-wider">Owner</th>
+                                    <th class="px-6 py-4 font-semibold tracking-wider">Status</th>
+                                    <th class="px-6 py-4 font-semibold tracking-wider">Location</th>
+                                    <th class="px-6 py-4 font-semibold tracking-wider text-right">View/Edit</th>
+                                </tr>
+                            </thead>
+                            <tbody id="assetTableBody" class="text-sm divide-y divide-white/5">
+                                <!-- Populated by JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                    <!-- Empty State (Hidden) -->
+                    <div id="emptyState" class="hidden flex flex-col items-center justify-center py-20 text-center">
+                        <div class="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mb-4">
+                            <i class="ri-inbox-line text-3xl text-slate-500"></i>
+                        </div>
+                        <h3 class="text-slate-300 font-medium" id="empty-text">No assets found</h3>
+                        <p class="text-slate-500 text-sm mt-1">Try adding a new asset or syncing from Google Sheets.</p>
+                        <button onclick="pullFromCloud()"
+                            class="mt-4 px-4 py-2 bg-blue-600/20 hover:bg-blue-600/40 text-blue-400 rounded-xl text-xs font-bold transition-all flex items-center gap-2">
+                            <i class="ri-refresh-line"></i> Sync Data from Sheet
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Analytics View -->
+                <div id="analytics-view" class="hidden animate-fade-in space-y-8">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div class="glass-card rounded-2xl p-6 border-b-4 border-b-blue-500">
+                            <p class="text-slate-400 text-xs font-medium mb-1 uppercase tracking-widest">Total Inventory
+                                Investment</p>
+                            <h3 class="text-3xl font-bold text-white">₹<span id="statValue-Analytics">0</span></h3>
+                            <p class="text-[10px] text-slate-500 mt-2 italic shadow-sm">Calculated from all active &
+                                stock assets</p>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div class="glass-card rounded-2xl p-6">
+                            <h3 class="text-white font-bold mb-4">Asset Distribution</h3>
+                            <div class="h-64 flex items-center justify-center">
+                                <canvas id="assetChart"></canvas>
+                            </div>
+                        </div>
+                        <div class="glass-card rounded-2xl p-6">
+                            <h3 class="text-white font-bold mb-4">Inventory Status</h3>
+                            <div class="h-64 flex items-center justify-center">
+                                <canvas id="statusChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="glass-card rounded-2xl p-6">
+                        <h3 class="text-white font-bold mb-4">Stock Alerts & Inventory Health</h3>
+                        <div id="stock-alerts-list" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <!-- Alerts go here -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ISP View -->
+                <div id="isp-view" class="hidden animate-fade-in space-y-6">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-xl font-bold text-white">Internet Service Providers (Lines)</h3>
+                        <button onclick="openAddModalForISP()"
+                            class="bg-green-600 hover:bg-green-500 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-lg shadow-green-600/20 transition-all flex items-center gap-2">
+                            <i class="ri-add-line"></i> Add ISP Line
+                        </button>
+                    </div>
+                    <div class="grid grid-cols-1 gap-6" id="isp-list">
+                        <!-- ISP Cards go here -->
+                    </div>
+                </div>
+
+            </div>
+        </main>
+    </div>
+
+    <!-- Modals -->
+
+    <!-- Add Asset Modal (Full Schema) -->
+    <div id="addModal"
+        class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex items-center justify-center opacity-0 transition-opacity duration-300">
+        <div class="bg-[#1e293b] border border-white/10 rounded-2xl shadow-2xl p-6 w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col transform scale-95 transition-transform duration-300"
+            id="addModalContent">
+            <h2 class="text-xl font-bold text-white mb-4 flex-shrink-0" id="modal-title">Add New Asset</h2>
+
+            <div class="flex-1 overflow-y-auto pr-2 space-y-6">
+                <!-- Group 1: Core Identity -->
+                <div class="space-y-4">
+                    <h3 class="text-blue-400 text-xs font-bold uppercase tracking-wider border-b border-white/5 pb-1">
+                        Core Identity</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div><label class="block text-xs text-slate-400 mb-1">Asset ID *</label><input type="text"
+                                id="inp-id"
+                                class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:border-blue-500 outline-none"
+                                placeholder="Required"></div>
+                        <div><label class="block text-xs text-slate-400 mb-1">Device Type</label><select id="inp-type"
+                                class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm outline-none">
+                                <option>LAPTOP</option>
+                                <option>DESKTOP</option>
+                                <option>CPU</option>
+                                <option>MONITOR</option>
+                                <option>PRINTER</option>
+                                <option>KEYBOARD</option>
+                                <option>MOUSE</option>
+                                <option>HEADPHONE</option>
+                                <option>CAMERA</option>
+                                <option>INTERNET LINE</option>
+                                <option>OTHER</option>
+                            </select></div>
+                        <div><label class="block text-xs text-slate-400 mb-1">Asset Status</label><select
+                                id="inp-status"
+                                class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm outline-none">
+                                <option>IN USE</option>
+                                <option>In Stock</option>
+                                <option>Broken</option>
+                                <option>Scrap</option>
+                            </select></div>
+                        <div id="container-assigned"><label class="block text-xs text-slate-400 mb-1">Assigned
+                                To</label><input type="text" id="inp-assigned"
+                                class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm outline-none">
+                        </div>
+                        <div id="container-location"><label
+                                class="block text-xs text-slate-400 mb-1">Location</label><input type="text"
+                                id="inp-location"
+                                class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm outline-none">
+                        </div>
+                        <div id="container-desk"><label class="block text-xs text-slate-400 mb-1">Desk #</label><input
+                                type="text" id="inp-desk"
+                                class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm outline-none">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Group 1.5: ISP Details -->
+                <div id="group-isp" class="space-y-4 hidden">
+                    <h3 class="text-blue-400 text-xs font-bold uppercase tracking-wider border-b border-white/5 pb-1">
+                        Internet Line Details</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div><label class="block text-xs text-slate-400 mb-1">ISP Name</label><input type="text"
+                                id="inp-isp_name"
+                                class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm outline-none"
+                                placeholder="e.g. Airtel, Jio"></div>
+                        <div><label class="block text-xs text-slate-400 mb-1">Account / ID</label><input type="text"
+                                id="inp-account_id"
+                                class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm outline-none">
+                        </div>
+                        <div><label class="block text-xs text-slate-400 mb-1">Plan Speed</label><input type="text"
+                                id="inp-plan_speed"
+                                class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm outline-none"
+                                placeholder="e.g. 100 Mbps"></div>
+                    </div>
+                </div>
+
+                <!-- Group 2: Specs -->
+                <div id="group-specs" class="space-y-4">
+                    <h3 class="text-blue-400 text-xs font-bold uppercase tracking-wider border-b border-white/5 pb-1">
+                        Hardware Specs</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <div><label class="block text-xs text-slate-400 mb-1">Brand</label><input type="text"
+                                id="inp-brand"
+                                class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm outline-none">
+                        </div>
+                        <div><label class="block text-xs text-slate-400 mb-1">Model</label><input type="text"
+                                id="inp-model"
+                                class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm outline-none">
+                        </div>
+                        <div><label class="block text-xs text-slate-400 mb-1">Serial Number</label><input type="text"
+                                id="inp-serial"
+                                class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm outline-none">
+                        </div>
+                        <div><label class="block text-xs text-slate-400 mb-1">Processor</label><input type="text"
+                                id="inp-processor"
+                                class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm outline-none">
+                        </div>
+                        <div><label class="block text-xs text-slate-400 mb-1">RAM</label><input type="text" id="inp-ram"
+                                class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm outline-none">
+                        </div>
+                        <div><label class="block text-xs text-slate-400 mb-1">SSD/HDD</label><input type="text"
+                                id="inp-storage_type"
+                                class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm outline-none">
+                        </div>
+                        <div><label class="block text-xs text-slate-400 mb-1">Size</label><input type="text"
+                                id="inp-storage_size"
+                                class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm outline-none">
+                        </div>
+                        <div><label class="block text-xs text-slate-400 mb-1">OS</label><input type="text" id="inp-os"
+                                class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm outline-none">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Group 3: Components -->
+                <div id="group-components" class="space-y-4">
+                    <h3 class="text-blue-400 text-xs font-bold uppercase tracking-wider border-b border-white/5 pb-1">
+                        Components</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <!-- Monitors -->
+                        <div class="col-span-2 grid grid-cols-2 gap-2 bg-white/5 p-2 rounded relative group/comp">
+                            <div class="col-span-2 flex justify-between items-center">
+                                <span class="text-xs font-mono text-slate-500">Primary Monitor</span>
+                                <button onclick="openStockPicker('MONITOR', ['inp-mon_pri', 'inp-sn_mon_pri'])"
+                                    class="text-[10px] bg-blue-600/20 text-blue-400 px-1.5 rounded hover:bg-blue-600 hover:text-white transition-all">Lookup
+                                    Stock</button>
+                            </div>
+                            <div><input type="text" id="inp-mon_pri" placeholder="Model"
+                                    class="w-full bg-slate-900 border-none rounded px-2 py-1 text-xs text-white">
+                            </div>
+                            <div><input type="text" id="inp-sn_mon_pri" placeholder="Serial"
+                                    class="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-white">
+                            </div>
+                        </div>
+                        <div class="col-span-2 grid grid-cols-2 gap-2 bg-white/5 p-2 rounded relative group/comp">
+                            <div class="col-span-2 flex justify-between items-center">
+                                <span class="text-xs font-mono text-slate-500">Secondary Monitor</span>
+                                <button onclick="openStockPicker('MONITOR', ['inp-mon_sec', 'inp-sn_mon_sec'])"
+                                    class="text-[10px] bg-blue-600/20 text-blue-400 px-1.5 rounded hover:bg-blue-600 hover:text-white transition-all">Lookup
+                                    Stock</button>
+                            </div>
+                            <div><input type="text" id="inp-mon_sec" placeholder="Model"
+                                    class="w-full bg-slate-900 border-none rounded px-2 py-1 text-xs text-white">
+                            </div>
+                            <div><input type="text" id="inp-sn_mon_sec" placeholder="Serial"
+                                    class="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-white">
+                            </div>
+                        </div>
+
+                        <!-- Peripherals -->
+                        <div class="grid grid-cols-1 gap-2 border border-white/5 p-2 rounded relative group/comp">
+                            <div class="flex justify-between items-center mb-1">
+                                <span class="text-[10px] text-slate-500 uppercase">Keyboard</span>
+                                <button onclick="openStockPicker('KEYBOARD', ['inp-kb', 'inp-sn_kb'])"
+                                    class="text-[9px] bg-orange-500/20 text-orange-400 px-1 rounded hover:bg-orange-500 hover:text-white transition-all">Stock</button>
+                            </div>
+                            <input type="text" id="inp-kb" placeholder="Model"
+                                class="w-full bg-slate-900 border-none rounded px-2 py-1 text-xs text-white">
+                            <input type="text" id="inp-sn_kb" placeholder="Serial"
+                                class="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-white">
+                        </div>
+                        <div class="grid grid-cols-1 gap-2 border border-white/5 p-2 rounded relative group/comp">
+                            <div class="flex justify-between items-center mb-1">
+                                <span class="text-[10px] text-slate-500 uppercase">Mouse</span>
+                                <button onclick="openStockPicker('MOUSE', ['inp-mouse', 'inp-sn_mouse'])"
+                                    class="text-[9px] bg-orange-500/20 text-orange-400 px-1 rounded hover:bg-orange-500 hover:text-white transition-all">Stock</button>
+                            </div>
+                            <input type="text" id="inp-mouse" placeholder="Model"
+                                class="w-full bg-slate-900 border-none rounded px-2 py-1 text-xs text-white">
+                            <input type="text" id="inp-sn_mouse" placeholder="Serial"
+                                class="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-white">
+                        </div>
+                        <div class="grid grid-cols-1 gap-2 border border-white/5 p-2 rounded relative group/comp">
+                            <div class="flex justify-between items-center mb-1">
+                                <span class="text-[10px] text-slate-500 uppercase">Headphone</span>
+                                <button onclick="openStockPicker('HEADPHONE', ['inp-head', 'inp-sn_head'])"
+                                    class="text-[9px] bg-orange-500/20 text-orange-400 px-1 rounded hover:bg-orange-500 hover:text-white transition-all">Stock</button>
+                            </div>
+                            <input type="text" id="inp-head" placeholder="Model"
+                                class="w-full bg-slate-900 border-none rounded px-2 py-1 text-xs text-white">
+                            <input type="text" id="inp-sn_head" placeholder="Serial"
+                                class="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-white">
+                        </div>
+                        <div class="grid grid-cols-1 gap-2 border border-white/5 p-2 rounded relative group/comp">
+                            <div class="flex justify-between items-center mb-1">
+                                <span class="text-[10px] text-slate-500 uppercase">Camera</span>
+                                <button onclick="openStockPicker('CAMERA', ['inp-cam', 'inp-sn_cam'])"
+                                    class="text-[9px] bg-orange-500/20 text-orange-400 px-1 rounded hover:bg-orange-500 hover:text-white transition-all">Stock</button>
+                            </div>
+                            <input type="text" id="inp-cam" placeholder="Model"
+                                class="w-full bg-slate-900 border-none rounded px-2 py-1 text-xs text-white">
+                            <input type="text" id="inp-sn_cam" placeholder="Serial"
+                                class="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-white">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Group 4: Network & Purchase -->
+                <div class="space-y-4">
+                    <h3 class="text-blue-400 text-xs font-bold uppercase tracking-wider border-b border-white/5 pb-1">
+                        Network & Purchase</h3>
+                    <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
+                        <div><label class="block text-xs text-slate-400 mb-1">IP Address</label><input type="text"
+                                id="inp-ip"
+                                class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm outline-none">
+                        </div>
+                        <div><label class="block text-xs text-slate-400 mb-1">Wi-Fi Mac/Adap</label><input type="text"
+                                id="inp-wifi"
+                                class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm outline-none">
+                        </div>
+                        <div><label class="block text-xs text-slate-400 mb-1">End Point</label><input type="text"
+                                id="inp-endpoint"
+                                class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm outline-none">
+                        </div>
+                        <div><label class="block text-xs text-slate-400 mb-1">Vendor</label><input type="text"
+                                id="inp-vendor"
+                                class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm outline-none">
+                        </div>
+                        <div><label class="block text-xs text-slate-400 mb-1">Invoice #</label><input type="text"
+                                id="inp-invoice"
+                                class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm outline-none">
+                        </div>
+                    </div>
+                    <div id="group-network-extra" class="grid grid-cols-2 gap-4">
+                        <div><label class="block text-xs text-slate-400 mb-1">OS License</label><input type="text"
+                                id="inp-os_lic"
+                                class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm outline-none">
+                        </div>
+                        <div><label class="block text-xs text-slate-400 mb-1">MS Office License</label><input
+                                type="text" id="inp-office_lic"
+                                class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm outline-none">
+                        </div>
+                    </div>
+                    <!-- Lifecycle & Value -->
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div><label class="block text-xs text-slate-400 mb-1">Purchase Date</label>
+                            <input type="date" id="inp-purchase_date"
+                                class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm outline-none">
+                        </div>
+                        <div><label class="block text-xs text-slate-400 mb-1">Warranty Expiry</label>
+                            <input type="date" id="inp-warranty_expiry"
+                                class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm outline-none">
+                        </div>
+                        <div><label class="block text-xs text-slate-400 mb-1">Asset Value (Price)</label>
+                            <input type="number" id="inp-price" placeholder="Enter amount"
+                                class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm outline-none">
+                        </div>
+                        <div class="col-span-1 md:col-span-2">
+                            <label class="block text-xs text-slate-400 mb-1">Bill Attachment (PDF/Image)</label>
+                            <div class="flex gap-2">
+                                <input type="file" id="inp-file-upload" class="hidden"
+                                    onchange="handleBillSelect(this)">
+                                <button onclick="document.getElementById('inp-file-upload').click()"
+                                    class="flex-1 bg-slate-800 border border-white/10 rounded-lg px-3 py-2 text-slate-300 text-xs hover:bg-slate-700 transition-all flex items-center gap-2">
+                                    <i class="ri-attachment-line"></i> <span id="file-status">Select Bill</span>
+                                </button>
+                                <input type="hidden" id="inp-bill_link">
+                                <div id="bill-preview-btn" class="hidden flex gap-1">
+                                    <button
+                                        onclick="window.open(document.getElementById('inp-bill_link').value, '_blank')"
+                                        class="bg-blue-600/20 text-blue-400 p-2 rounded-lg border border-blue-500/30 hover:bg-blue-600 hover:text-white transition-all"
+                                        title="View Bill">
+                                        <i class="ri-eye-line"></i>
+                                    </button>
+                                    <button id="btn-remove-bill" onclick="removeBill()"
+                                        class="bg-red-600/20 text-red-500 p-2 rounded-lg border border-red-500/30 hover:bg-red-600 hover:text-white transition-all"
+                                        title="Remove Bill">
+                                        <i class="ri-delete-bin-line"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <div class="flex justify-end gap-3 mt-6 pt-4 border-t border-white/5 flex-shrink-0">
+                <button onclick="closeAddModal()"
+                    class="px-6 py-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-white/5 font-medium transition-all">Cancel</button>
+                <button onclick="saveNewAsset()"
+                    class="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-medium shadow-lg shadow-blue-600/20 transition-all">Save
+                    Asset</button>
+  </div>
+        </div>
+    </div>
+
+    <!-- View Details Modal -->
+    <div id="viewModal"
+        class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex items-center justify-center opacity-0 transition-opacity duration-300">
+        <div
+            class="bg-[#1e293b] border border-white/10 rounded-2xl shadow-2xl p-0 w-full max-w-2xl transform scale-95 transition-transform duration-300 overflow-hidden">
+            <div class="bg-gradient-to-r from-blue-600 to-purple-600 p-6">
+                <div class="flex justify-between items-start">
+                    <div class="flex-1">
+                        <h2 class="text-2xl font-bold text-white relative z-10" id="view-id">ASSET-ID</h2>
+                        <div class="flex items-center gap-2 mt-2">
+                            <span
+                                class="px-2 py-0.5 rounded bg-white/20 text-white text-[10px] font-bold uppercase backdrop-blur-md"
+                                id="view-status">Status</span>
+                            <div class="h-4 w-px bg-white/20"></div>
+                            <button id="btn-copy-link" onclick="copyMobileLink()"
+                                class="flex items-center gap-2 px-3 py-1.5 bg-blue-600/10 text-blue-400 rounded-lg text-xs font-medium hover:bg-blue-600 hover:text-white transition-all">
+                                <i class="ri-qr-code-line"></i> Copy Mobile Link
+                            </button>
+                        </div>
+                    </div>
+                    <button onclick="closeViewModal()"
+                        class="text-white/80 hover:text-white bg-white/10 hover:bg-white/20 rounded-full p-2 transition"><i
+                            class="ri-close-line text-xl"></i></button>
+                </div>
+            </div>
+
+            <div class="p-6 space-y-4 max-h-[70vh] overflow-y-auto" id="view-details-body">
+                <!-- Data Groups will be here -->
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="glass-card p-4 rounded-xl">
+                        <p class="text-[10px] text-slate-500 uppercase font-bold tracking-widest mb-1">Lifecycle</p>
+                        <p class="text-xs text-slate-400">Purchase: <span class="text-white font-medium"
+                                id="view-purchase">-</span></p>
+                        <p class="text-xs text-slate-400">Warranty: <span class="text-white font-medium"
+                                id="view-warranty">-</span></p>
+                    </div>
+                    <div class="glass-card p-4 rounded-xl">
+                        <p class="text-[10px] text-slate-500 uppercase font-bold tracking-widest mb-1">Financial</p>
+                        <p class="text-xs text-slate-400">Value: <span class="text-white font-medium"
+                                id="view-price">₹0</span></p>
+                    </div>
+                </div>
+                <div id="view-details-grid" class="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm"></div>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- Cloud Settings Modal -->
+    <div id="settingsModal"
+        class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex items-center justify-center opacity-0 transition-opacity duration-300">
+        <div class="bg-[#1e293b] border border-white/10 rounded-2xl shadow-2xl p-6 w-full max-w-md transform scale-95 transition-transform duration-300"
+            id="settingsContent">
+            <h2 class="text-xl font-bold text-white mb-4">Cloud Configuration</h2>
+            <p class="text-xs text-slate-400 mb-6">Enter your Google Apps Script Web App URL to enable real-time Google
+                Sheet synchronization.</p>
+
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-xs text-slate-400 mb-1">Web App URL (Deployment ID)</label>
+                    <input type="text" id="setting-gas-url"
+                        class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-xs focus:border-blue-500 outline-none"
+                        placeholder="https://script.google.com/macros/s/.../exec">
+                </div>
+            </div>
+
+            <div class="flex justify-end gap-3 mt-8">
+                <button onclick="closeSettingsModal()"
+                    class="px-4 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-white/5 text-sm font-medium transition-all">Cancel</button>
+                <button onclick="saveCloudSettings()"
+                    class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium shadow-lg shadow-blue-600/20 transition-all">
+                    Save & Test
+                </button>
+            </div>
+        </div>
+    </div>
+    <div id="stockPickerModal"
+        class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] hidden flex items-center justify-center p-4">
+        <div
+            class="bg-slate-900 border border-white/10 rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[80vh]">
+            <div class="p-4 border-b border-white/5 flex justify-between items-center bg-white/5">
+                <h3 class="text-white font-semibold flex items-center gap-2">
+                    <i class="ri-list-check text-orange-400"></i>
+                    Select from <span id="pickerCategory" class="text-orange-400 uppercase">Stock</span>
+                </h3>
+                <button onclick="closeStockPicker()" class="text-slate-400 hover:text-white">
+                    <i class="ri-close-line text-xl"></i>
+                </button>
+            </div>
+            <div class="p-2 bg-slate-800/50">
+                <input type="text" id="pickerSearch" placeholder="Search models or serials..."
+                    class="w-full bg-slate-900 border border-white/10 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-orange-500/50"
+                    oninput="filterPickerList()">
+            </div>
+            <div class="flex-1 overflow-y-auto p-2 space-y-1" id="pickerList">
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Error Overlay (Remote Debugging) -->
+    <div id="error-overlay"
+        class="fixed inset-0 z-[9999] bg-red-950/90 items-center justify-center p-8 hidden animate-fade-in">
+        <div class="glass border-red-500/50 p-8 rounded-3xl max-w-2xl w-full">
+            <div class="flex items-center gap-4 text-red-400 mb-6">
+                <i class="ri-error-warning-fill text-4xl"></i>
+                <h2 class="text-2xl font-bold">Critical System Error</h2>
+            </div>
+            <div id="error-message"
+                class="bg-black/40 p-6 rounded-xl font-mono text-sm text-red-200 break-words mb-6 max-h-[400px] overflow-y-auto">
+                Error details will appear here.
+            </div>
+            <button onclick="location.reload()"
+                class="w-full py-4 bg-red-600 hover:bg-red-500 text-white rounded-xl font-bold transition-all shadow-xl shadow-red-600/20">
+                Reload Application
+            </button>
+        </div>
+    </div>
+
+    <div id="toast"
+        class="fixed bottom-4 right-4 bg-[#1e293b] border border-white/10 p-4 rounded-xl shadow-2xl transform transition-all duration-300 translate-y-20 opacity-0 z-50 flex items-center gap-4">
+        <div class="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-400">
+            <i class="ri-notification-3-line text-xl"></i>
+        </div>
+        <div>
+            <h4 class="font-bold text-white text-sm" id="toast-title">Notification</h4>
+            <p class="text-slate-400 text-xs" id="toast-msg">Message goes here</p>
+        </div>
+    </div>
+
+    <!-- Bulk Action Bar -->
+    <div id="bulk-bar"
+        class="fixed bottom-8 left-1/2 -translate-x-1/2 glass border border-blue-500/30 px-6 py-4 rounded-2xl shadow-2xl z-40 transform translate-y-32 transition-all duration-300 flex items-center gap-6">
+        <div class="flex items-center gap-3 pr-6 border-r border-white/10">
+            <div class="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white font-bold"
+                id="bulk-count">0</div>
+            <span class="text-sm font-medium text-white">Items Selected</span>
+        </div>
+        <div class="flex items-center gap-2">
+            <button onclick="bulkStatusChange()"
+                class="px-3 py-2 bg-white/5 hover:bg-white/10 text-slate-300 rounded-lg text-xs font-medium transition-all flex items-center gap-2">
+                <i class="ri-pencil-line"></i> Change Status
+            </button>
+            <button onclick="bulkScrap()"
+                class="px-3 py-2 bg-orange-500/10 hover:bg-orange-500/20 text-orange-400 rounded-lg text-xs font-medium transition-all flex items-center gap-2">
+                <i class="ri-hammer-line"></i> Move to Scrap
+            </button>
+            <button onclick="bulkDelete()"
+                class="px-3 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-lg text-xs font-medium transition-all flex items-center gap-2">
+                <i class="ri-delete-bin-line"></i> Delete
+            </button>
+            <button onclick="toggleSelectAll(false)"
+                class="ml-4 text-xs text-slate-500 hover:text-white transition-all underline underline-offset-4">Deselect
+                All</button>
+        </div>
+    </div>
+
+    </div>
+
+    <!-- --- MODULE 1: CORE STATE & SCHEMA --- -->
+    <script>
+        console.log('Envision System: Module 1 (Core) Loading...');
+        window.assets = [];
+        window.logs = [];
+        window.currentTab = 'all';
+        window.currentSearch = '';
+
+        try {
+            window.assets = (JSON.parse(localStorage.getItem('assets')) || []).filter(a => a && a.id);
+            window.logs = JSON.parse(localStorage.getItem('logs')) || [];
+            console.log('Local Storage sync complete.');
+        } catch (e) {
+            console.error('Core init data failure:', e);
+            localStorage.setItem('assets', '[]');
+            localStorage.setItem('logs', '[]');
+        }
+
+        window.SCHEMA = [
+            { key: 'id', label: 'Asset ID', type: 'text' },
+            { key: 'device_type', label: 'Device Type', type: 'text' },
+            { key: 'assigned_to', label: 'Assigned To', type: 'text' },
+            { key: 'ram', label: 'Ram', type: 'text' },
+            { key: 'processor', label: 'Processor', type: 'text' },
+            { key: 'os', label: 'Operating System', type: 'text' },
+            { key: 'storage_type', label: 'SSD/HDD', type: 'text' },
+            { key: 'storage_size', label: 'SSD/HDD SIZE', type: 'text' },
+            { key: 'brand', label: 'Brand', type: 'text' },
+            { key: 'model', label: 'Model', type: 'text' },
+            { key: 'serial_number', label: 'Serial Number', type: 'text' },
+            { key: 'mon_pri', label: 'Monitor Pri', type: 'text' },
+            { key: 'sn_mon_pri', label: 'Serial No (Mon1)', type: 'text' },
+            { key: 'mon_sec', label: 'Monitor Sec', type: 'text' },
+            { key: 'sn_mon_sec', label: 'Serial No (Mon2)', type: 'text' },
+            { key: 'kb', label: 'Keyboard', type: 'text' },
+            { key: 'sn_kb', label: 'Serial No (KB)', type: 'text' },
+            { key: 'mouse', label: 'Mouse', type: 'text' },
+            { key: 'sn_mouse', label: 'Serial No (Mouse)', type: 'text' },
+            { key: 'head', label: 'Headphone', type: 'text' },
+            { key: 'sn_head', label: 'Serial No (Head)', type: 'text' },
+            { key: 'cam', label: 'Camera', type: 'text' },
+            { key: 'sn_cam', label: 'Serial No (Cam)', type: 'text' },
+            { key: 'wifi', label: 'Wi-Fi', type: 'text' },
+            { key: 'vendor', label: 'Vendor Name', type: 'text' },
+            { key: 'invoice', label: 'Invoice #', type: 'text' },
+            { key: 'status', label: 'Asset status', type: 'select', options: ['IN USE', 'In Stock', 'Broken', 'Scrap', 'Repair'] },
+            { key: 'location', label: 'Location', type: 'text' },
+            { key: 'purchase_date', label: 'Purchase Date', type: 'date' },
+            { key: 'warranty_expiry', label: 'Warranty Expiry', type: 'date' },
+            { key: 'price', label: 'Asset Value (Price)', type: 'number' },
+            { key: 'ip', label: 'IP Address', type: 'text' },
+            { key: 'os_lic', label: 'OS License', type: 'text' },
+            { key: 'office_lic', label: 'MS-Office License', type: 'text' },
+            { key: 'endpoint', label: 'End Point', type: 'text' },
+            { key: 'desk', label: 'Desk #', type: 'text' },
+            { key: 'bill_link', label: 'Bill Link', type: 'text' },
+            { key: 'isp_name', label: 'ISP Name', type: 'text' },
+            { key: 'account_id', label: 'Account/ID', type: 'text' },
+            { key: 'plan_speed', label: 'Plan Speed', type: 'text' }
+        ];
+
+        window.FIELDS = window.SCHEMA.map(f => f.key);
+
+        window.saveAndRender = function () {
+            window.assets = window.assets.filter(a => a && a.id);
+            localStorage.setItem('assets', JSON.stringify(window.assets));
+            if (typeof updateStats === 'function') updateStats();
+            if (typeof updateSidebarAlerts === 'function') updateSidebarAlerts();
+
+            if (window.currentTab === 'isp') {
+                if (typeof renderISP === 'function') renderISP();
+            } else if (window.currentTab === 'logs') {
+                if (typeof renderLogs === 'function') renderLogs();
+            } else if (window.currentTab === 'analytics') {
+                if (typeof renderAnalytics === 'function') renderAnalytics();
+            } else {
+                if (typeof renderTable === 'function') renderTable();
+            }
+        };
+
+        window.clearAllData = function () {
+            if (confirm('Are you sure you want to DELETE ALL DATA? This cannot be undone.')) {
+                const password = prompt('Please enter Admin PIN to confirm Master Reset:');
+                if (password === '1234') {
+                    window.assets = [];
+                    window.saveAndRender();
+                    if (typeof showToast === 'function') showToast('System Reset', 'All data has been cleared.', 'success');
+                } else {
+                    if (typeof showToast === 'function') showToast('Reset Aborted', 'Invalid Admin PIN!', 'error');
+                }
+            }
+        };
+
+        window.checkManifest = function () {
+            if (typeof showToast === 'function') showToast('Deployment Tip', 'If you see "Empty response", check your Manifest matches the one from Antigravity.', 'info');
+        };
+
+        // UI Error Catcher Setup
+        window.addEventListener('error', function (e) {
+            const overlay = document.getElementById('error-overlay');
+            const msgEl = document.getElementById('error-message');
+            if (overlay && msgEl) {
+                overlay.style.display = 'flex';
+                msgEl.innerText = (e.message) + '\nAt: ' + (e.filename) + '\nLine: ' + (e.lineno);
+            }
+            console.error('Module Error Captured:', e);
+        });
+    </script>
+    <script>
+        console.log("Envision System: Operations & UI Module Loading...");
+
+
+        window.deleteAsset = function (id) {
+            if (confirm('Delete asset ' + (id) + '?')) {
+                window.assets = window.assets.filter(a => a.id !== id);
+                window.saveAndRender();
+                if (typeof showToast === 'function') showToast('Deleted', 'Asset ' + (id) + ' removed successfully.', 'success');
+            }
+        };
+
+        // --- MODULE 2: DATA OPERATIONS ---
+
+        window.exportExcel = function () {
+            if (assets.length === 0) {
+                showToast('Export Failed', 'No data to export!', 'error');
+                return;
+            }
+
+            // 1. Map Data to Headers
+            const exportData = assets.map(asset => {
+                let row = {};
+                SCHEMA.forEach(col => {
+                    row[col.label] = asset[col.key] || '';
+                });
+                return row;
+            });
+
+            // 2. Create Sheet
+            const ws = XLSX.utils.json_to_sheet(exportData);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Inventory");
+
+            // 3. Save File
+            XLSX.writeFile(wb, "Inventory_Master_Export.xlsx");
+            showToast('Export Complete', 'Inventory_Master_Export.xlsx downloaded.', 'success');
+        }
+
+        window.handleFileSelect = function (input) {
+            const file = input.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, { type: 'array' });
+                const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                // Always get array of arrays (header:1) to inspect first row
+                const jsonData = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
+                processImportData(jsonData);
+            };
+            reader.readAsArrayBuffer(file);
+            input.value = '';
+        }
+
+        window.processImportData = function (rows) {
+            if (!rows || rows.length < 2) {
+                if (typeof showToast === 'function') showToast('Import Failed', 'Empty file or no header row.', 'error');
+                return;
+            }
+            const headers = rows[0].map(h => (h || '').toString().trim().toLowerCase());
+            const findIndex = (keywords) => headers.findIndex(h => keywords.some(k => h.includes(k)));
+
+            const map = {
+                id: findIndex(['asset id', 'id']),
+                assigned_to: findIndex(['assigned', 'owner', 'user']),
+                device_type: findIndex(['device type', 'type', 'category']),
+                brand: findIndex(['brand', 'make']),
+                model: findIndex(['model']),
+                serial_number: headers.indexOf('serial number'),
+                status: findIndex(['status']),
+                location: findIndex(['location']),
+                desk: findIndex(['desk']),
+                ram: findIndex(['ram', 'memory']),
+                processor: findIndex(['processor', 'cpu']),
+                os: findIndex(['operating system', 'os']),
+                storage_type: findIndex(['ssd', 'hdd', 'storage type']),
+                storage_size: findIndex(['size', 'capacity']),
+                ip: findIndex(['ip address', 'ip']),
+                wifi: findIndex(['wi-fi', 'wifi', 'mac']),
+                endpoint: findIndex(['end point', 'endpoint']),
+                vendor: findIndex(['vendor']),
+                invoice: findIndex(['invoice']),
+                os_lic: findIndex(['os license']),
+                office_lic: findIndex(['office license'])
+            };
+
+            const getNextSerial = (baseIdx) => {
+                if (baseIdx === -1) return -1;
+                for (let i = 1; i <= 2; i++) {
+                    const next = baseIdx + i;
+                    if (headers[next] && (headers[next].includes('serial') || headers[next].includes('s/n'))) return next;
+                }
+                return -1;
+            };
+
+            if (map.serial_number === -1) map.serial_number = findIndex(['serial number', 's/n', 'serial no']);
+            map.mon_pri = findIndex(['monitor pri', 'primary monitor']); map.sn_mon_pri = getNextSerial(map.mon_pri);
+            map.mon_sec = findIndex(['monitor sec', 'secondary monitor']); map.sn_mon_sec = getNextSerial(map.mon_sec);
+            map.kb = findIndex(['keyboard']); map.sn_kb = getNextSerial(map.kb);
+            map.mouse = findIndex(['mouse']); map.sn_mouse = getNextSerial(map.mouse);
+
+            let count = 0;
+            for (let i = 1; i < rows.length; i++) {
+                const row = rows[i];
+                if (!row || row.length === 0) continue;
+
+                const getVal = (idx) => (idx !== -1 && row[idx] !== undefined) ? row[idx].toString().trim() : '';
+
+                let newAsset = {};
+                newAsset.id = getVal(map.id);
+                if (!newAsset.id) continue;
+
+                newAsset.assigned_to = getVal(map.assigned_to);
+                newAsset.device_type = getVal(map.device_type);
+                newAsset.brand = getVal(map.brand);
+                newAsset.model = getVal(map.model);
+                newAsset.serial_number = getVal(map.serial_number);
+                newAsset.status = getVal(map.status) || 'In Stock';
+                newAsset.location = getVal(map.location);
+                newAsset.desk = getVal(map.desk);
+                newAsset.ram = getVal(map.ram);
+                newAsset.processor = getVal(map.processor);
+                newAsset.os = getVal(map.os);
+                newAsset.storage_type = getVal(map.storage_type);
+                newAsset.storage_size = getVal(map.storage_size);
+                newAsset.mon_pri = getVal(map.mon_pri);
+                newAsset.sn_mon_pri = getVal(map.sn_mon_pri);
+                newAsset.mon_sec = getVal(map.mon_sec);
+                newAsset.sn_mon_sec = getVal(map.sn_mon_sec);
+                newAsset.kb = getVal(map.kb);
+                newAsset.sn_kb = getVal(map.sn_kb);
+                newAsset.mouse = getVal(map.mouse);
+                newAsset.sn_mouse = getVal(map.sn_mouse);
+                newAsset.ip = getVal(map.ip);
+                newAsset.wifi = getVal(map.wifi);
+                newAsset.endpoint = getVal(map.endpoint);
+                newAsset.vendor = getVal(map.vendor);
+                newAsset.invoice = getVal(map.invoice);
+                newAsset.os_lic = getVal(map.os_lic);
+                newAsset.office_lic = getVal(map.office_lic);
+
+                if (!newAsset.device_type) {
+                    const id = newAsset.id.toLowerCase();
+                    if (id.includes('lap')) newAsset.device_type = 'Laptop';
+                    else if (id.includes('desk') || id.includes('cpu') || id.includes('pc') || id.includes('tower')) newAsset.device_type = 'Desktop';
+                    else if (id.includes('mon')) newAsset.device_type = 'Monitor';
+                    else if (id.includes('kb') || id.includes('key')) newAsset.device_type = 'Keyboard';
+                    else if (id.includes('mse') || id.includes('mouse') || id.includes('mous')) newAsset.device_type = 'Mouse';
+                    else newAsset.device_type = 'Other';
+                }
+
+                const existingIdx = window.assets.findIndex(a => a.id === newAsset.id);
+                if (existingIdx >= 0) window.assets[existingIdx] = newAsset;
+                else window.assets.push(newAsset);
+                count++;
+            }
+
+            window.saveAndRender();
+            if (typeof showToast === 'function') showToast('Import Successful', 'Processed ' + (count) + ' assets.', 'success');
+        }
+
+        // --- UI Rendering ---
+
+        window.switchTab = function (tab) {
+            currentTab = tab;
+
+            // Reset Nav Styles
+            const navItems = ['all', 'active', 'broken', 'stock_laptop', 'stock_desktop', 'stock_monitor',
+                'stock_kb', 'stock_mouse', 'stock_other', 'deployed_monitor', 'deployed_kb', 'deployed_mouse',
+                'logs',
+                'analytics', 'isp'];
+            navItems.forEach(item => {
+                const btn = document.getElementById('nav-' + (item));
+                if (btn) {
+                    const isActive = (item === tab);
+                    if (isActive) {
+                        btn.className = "w-full flex items-center gap-3 px-4 py-2 rounded-xl text-sm font-medium transition-all bg-white/10 text-blue-400 border border-white/10 shadow-lg";
+                    } else {
+                        btn.className = "w-full flex items-center gap-3 px-4 py-2 rounded-xl text-sm font-medium text-slate-400 hover:text-white hover:bg-white/5 transition-all";
+                    }
+                }
+            });
+
+            // Update Title
+            let title = 'Envisi<span>o</span>n Invent<span>o</span>ry Deskb<span>o</span>ard';
+            if (tab === 'active') title = 'IN USE Deployments';
+            if (tab === 'active_laptop') title = 'IN USE: Laptops';
+            if (tab === 'active_desktop') title = 'IN USE: Desktops';
+            if (tab === 'broken') title = 'Broken / Scrap';
+            if (tab === 'stock_laptop') title = 'Stock: Laptops';
+            if (tab === 'stock_desktop') title = 'Stock: Desktops';
+            if (tab === 'stock_monitor') title = 'Stock: Monitors';
+            if (tab === 'stock_kb') title = 'Stock: Keyboards';
+            if (tab === 'stock_mouse') title = 'Stock: Mouse';
+            if (tab === 'stock_other') title = 'Stock: Others';
+            if (tab === 'deployed_monitor') title = 'Deployed: Monitors';
+            if (tab === 'deployed_kb') title = 'Deployed: Keyboards';
+            if (tab === 'deployed_mouse') title = 'Deployed: Mouse';
+
+            const pageTitle = document.getElementById('page-title');
+            if (pageTitle) pageTitle.innerHTML = title;
+
+            if (tab === 'analytics') {
+                document.getElementById('table-view').classList.add('hidden');
+                document.getElementById('analytics-view').classList.remove('hidden');
+                document.getElementById('isp-view').classList.add('hidden');
+                renderAnalytics();
+            } else if (tab === 'isp') {
+                document.getElementById('table-view').classList.add('hidden');
+                document.getElementById('analytics-view').classList.add('hidden');
+                document.getElementById('isp-view').classList.remove('hidden');
+                pageTitle.textContent = 'ISP Management / Internet Lines';
+                renderISP();
+            } else {
+                document.getElementById('table-view').classList.remove('hidden');
+                document.getElementById('analytics-view').classList.add('hidden');
+                document.getElementById('isp-view').classList.add('hidden');
+                if (tab === 'logs') {
+                    pageTitle.textContent = 'Activity Logs';
+                    renderLogs();
+                } else {
+                    renderTable();
+                }
+            }
+        }
+
+        let assetChart = null;
+        let statusChart = null;
+
+        window.renderAnalytics = function () {
+            const ctxAsset = document.getElementById('assetChart').getContext('2d');
+            const ctxStatus = document.getElementById('statusChart').getContext('2d');
+            const alertList = document.getElementById('stock-alerts-list');
+
+            // Data Prep
+            const stats = {
+                laptops: assets.filter(a => getAssetCategory(a) === 'laptop').length,
+                desktops: assets.filter(a => getAssetCategory(a) === 'desktop').length,
+                monitors: assets.filter(a => getAssetCategory(a) === 'monitor').length,
+                other: assets.filter(a => !['laptop', 'desktop', 'monitor'].includes(getAssetCategory(a))).length
+            };
+
+            const statusStats = {
+                inUse: assets.filter(a => {
+                    const s = (a.status || '').toLowerCase();
+                    return s === 'active' || s === 'in use';
+                }).length,
+                stock: assets.filter(a => {
+                    const s = (a.status || '').toLowerCase();
+                    return s.includes('stock') || s === 'available' || s === 'spare';
+                }).length,
+                broken: assets.filter(a => {
+                    const s = (a.status || '').toLowerCase();
+                    return s === 'broken' || s === 'scrap' || s === 'repair';
+                }).length
+            };
+
+            // Alerts Logic
+            alertList.innerHTML = '';
+            const peripheralCategories = [
+                { id: 'stock_kb', label: 'Keyboards', icon: 'ri-keyboard-line' },
+                { id: 'stock_mouse', label: 'Mice', icon: 'ri-mouse-line' },
+                { id: 'stock_monitor', label: 'Monitors', icon: 'ri-tv-line' }
+            ];
+
+            peripheralCategories.forEach(cat => {
+                const count = assets.filter(asset => {
+                    const status = (asset.status || '').trim().toLowerCase();
+                    const isInStock = status.includes('stock') || status === 'spare' || status === 'available';
+                    if (!isInStock) return false;
+
+                    const type = (asset.device_type || '').toLowerCase();
+                    const id = (asset.id || '').toLowerCase();
+                    if (cat.id === 'stock_kb' && (type.includes('keyboard') || id.includes('kb'))) return true;
+                    if (cat.id === 'stock_mouse' && (type.includes('mouse') || id.includes('mse'))) return true;
+                    if (cat.id === 'stock_monitor' && (type.includes('monitor') || id.includes('mon'))) return true;
+                    return false;
+                }).length;
+
+                if (count < 5) {
+                    const alertDiv = document.createElement('div');
+                    alertDiv.className = "p-4 rounded-xl border border-red-500/30 bg-red-500/10 flex items-center gap-3 animate-pulse";
+                    alertDiv.innerHTML = '<div class="w-10 h-10 rounded-lg bg-red-500/20 flex items-center justify-center text-red-400">' +
+                        '<i class="' + cat.icon + ' text-xl"></i>' +
+                        '</div>' +
+                        '<div>' +
+                        '<p class="text-[10px] text-red-300 uppercase font-bold tracking-widest">Low Stock Alert</p>' +
+                        '<h4 class="text-white font-bold">' + cat.label + ': ' + count + ' Left</h4>' +
+                        '</div>';
+                    alertList.appendChild(alertDiv);
+                }
+            });
+
+            if (alertList.innerHTML === '') {
+                alertList.innerHTML = '<div class="col-span-3 py-10 text-center text-slate-500 italic">All systems healthy. No inventory alerts.</div>';
+            }
+
+            // Charts
+            if (assetChart) assetChart.destroy();
+            if (statusChart) statusChart.destroy();
+
+            assetChart = new Chart(ctxAsset, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Laptops', 'Desktops', 'Monitors', 'Other'],
+                    datasets: [{
+                        data: [stats.laptops, stats.desktops, stats.monitors, stats.other],
+                        backgroundColor: ['#60a5fa', '#a855f7', '#facc15', '#475569'],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'bottom', labels: { color: '#94a3b8', font: { family: 'Outfit', size: 10 } } }
+                    }
+                }
+            });
+
+            statusChart = new Chart(ctxStatus, {
+                type: 'bar',
+                data: {
+                    labels: ['In Use', 'In Stock', 'Broken/Scrap'],
+                    datasets: [{
+                        label: 'Asset Status',
+                        data: [statusStats.inUse, statusStats.stock, statusStats.broken],
+                        backgroundColor: ['#22c55e', '#eab308', '#ef4444'],
+                        borderRadius: 8
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#94a3b8' } },
+                        x: { grid: { display: false }, ticks: { color: '#94a3b8' } }
+                    },
+                    plugins: { legend: { display: false } }
+                }
+            });
+        }
+
+        async function downloadPDFReport() {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF('l', 'mm', 'a4');
+
+            showToast('Generating Grouped Report...', 'Categorizing inventory...', 'info');
+
+            // 1. Define Groups
+            const activeItems = assets.filter(a => ['in use', 'active'].includes((a.status ||
+                '').toLowerCase().trim()));
+            const stockItems = assets.filter(a => ['in stock', 'stock', 'available', 'spare'].includes((a.status
+                || '').toLowerCase().trim()));
+            const brokenItems = assets.filter(a => ['broken', 'scrap', 'repair', 'damaged'].includes((a.status
+                || '').toLowerCase().trim()));
+            const otherItems = assets.filter(a => {
+                const s = (a.status || '').toLowerCase().trim();
+                return !activeItems.includes(a) && !stockItems.includes(a) && !brokenItems.includes(a);
+            });
+
+            // 2. Branding & Header
+            doc.setFillColor(30, 41, 59);
+            doc.rect(0, 0, 297, 35, 'F');
+            doc.setFontSize(24);
+            doc.setTextColor(255, 255, 255);
+            doc.text("ENVISION INVENTORY SOLUTIONS", 14, 22);
+            doc.setFontSize(10);
+            doc.text('Master Inventory Export | Total: ' + (assets.length) + ' Assets | ' + (new
+                Date().toLocaleString()), 14, 29);
+
+            let currentY = 45;
+
+            // Helper to add table sections
+            const addSection = (title, data, color) => {
+                if (data.length === 0) return;
+
+                // Check for page overflow
+                if (currentY > 170) { doc.addPage(); currentY = 20; }
+
+                // Header for Section
+                doc.setFontSize(14);
+                doc.setTextColor(color[0], color[1], color[2]);
+                doc.text(title.toUpperCase(), 14, currentY);
+                currentY += 5;
+
+                const rows = data.map(a => [
+                    a.id || '-', a.device_type || '-', a.assigned_to || '-', (a.status || '').toUpperCase(),
+                    a.location || '-', a.purchase_date || '-', a.price ? '₹' +
+                        parseFloat(a.price).toLocaleString('en-IN') : '-'
+                ]);
+
+                doc.autoTable({
+                    startY: currentY,
+                    head: [['Asset ID', 'Device Type', 'Assigned To', 'Status', 'Location', 'Purchase Date', 'Value']],
+                    body: rows,
+                    theme: 'grid',
+                    headStyles: { fillColor: color, textColor: [255, 255, 255], fontStyle: 'bold' },
+                    margin: { left: 14, right: 14 },
+                    styles: { fontSize: 8 },
+                    didDrawPage: (data) => { /* No-op needed here as startY handles it */ }
+                });
+                currentY = doc.lastAutoTable.finalY + 15;
+            };
+
+            // 3. Render Sections in Strict Sequence
+            addSection("Section 1: Active Inventory (In Use)", activeItems, [34, 197, 94]); // Green
+            addSection("Section 2: Warehouse Stock (Available)", stockItems, [234, 179, 8]); // Yellow/Orange
+            addSection("Section 3: Broken & Scrap Items", brokenItems, [239, 68, 68]); // Red
+            addSection("Section 4: Miscellaneous", otherItems, [71, 85, 105]); // Slate
+
+            // 4. Final Total Value Summary
+            const totalVal = assets.reduce((sum, a) => sum + (parseFloat(a.price) || 0), 0);
+            if (currentY > 180) { doc.addPage(); currentY = 20; }
+
+            doc.setDrawColor(30, 41, 59);
+            doc.setLineWidth(0.5);
+            doc.line(14, currentY, 283, currentY);
+
+            currentY += 10;
+            doc.setFontSize(14);
+            doc.setTextColor(30, 41, 59);
+            doc.text('TOTAL INVENTORY INVESTMENT: ₹' + (totalVal.toLocaleString('en-IN')), 283, currentY, {
+                align:
+                    'right'
+            });
+
+            doc.save('Envision_Grouped_Report_' + (new Date().toISOString().split('T')[0]) + '.pdf');
+            showToast('PDF Saved', 'Grouped report generated successfully.', 'success');
+        }
+
+        window.renderLogs = function () {
+            const tbody = document.getElementById('assetTableBody');
+            const emptyState = document.getElementById('emptyState');
+            tbody.innerHTML = '';
+
+            showToast('Fetching Logs...', 'Loading history from Cloud...', 'info');
+
+            const handleSuccess = function (cloudLogs) {
+                const res = typeof cloudLogs === 'string' ? JSON.parse(cloudLogs) : cloudLogs;
+                const logsToRender = (Array.isArray(res) ? res : (res.data || logs)).slice(0, 100);
+
+                tbody.innerHTML = '';
+                if (logsToRender.length === 0) {
+                    emptyState.classList.remove('hidden');
+                    document.getElementById('empty-text').textContent = 'No activity logs found.';
+                    return;
+                }
+                emptyState.classList.add('hidden');
+
+                logsToRender.forEach(log => {
+                    const tr = document.createElement('tr');
+                    tr.className = 'asset-row group border-b border-white/5 last:border-0 hover:bg-white/5 transition-colors';
+
+                    let actionColor = 'text-slate-300';
+                    if (log.action.includes('UPDATE')) actionColor = 'text-blue-400 font-bold';
+                    if (log.action.includes('CREATE') || log.action.includes('ADD')) actionColor = 'text-green-400 font-bold';
+                    if (log.action.includes('DELETE')) actionColor = 'text-red-400 font-bold';
+
+                    tr.innerHTML = '\n    <td class="px-6 py-4 font-mono text-slate-400 text-[10px] whitespace-nowrap">' + (log.date) + '</td>\n    <td class="px-6 py-4 font-bold text-white text-xs whitespace-nowrap">' + (log.id) + '</td>\n    <td class="px-6 py-4 ' + (actionColor) + ' text-[10px] uppercase tracking-wider">' + (log.action) + '</td>\n    <td class="px-6 py-4 text-blue-300 text-[10px] font-bold uppercase">' + (log.user || 'System') + '</td>\n    <td class="px-6 py-4 text-slate-300 text-xs" colspan="2">' + (log.msg) + '</td>\n    ';
+                    tbody.appendChild(tr);
+                });
+                document.getElementById('total-count').textContent = (logsToRender.length) + ' Entries';
+            };
+
+            if (typeof google !== 'undefined' && google.script && google.script.run) {
+                google.script.run.withSuccessHandler(handleSuccess).fetchActivityLogs();
+            } else {
+                // Fetch via API if local
+                const cleanUrl = (GAS_API_URL || '').trim().replace(/\/$/, "");
+                fetch((cleanUrl) + '?action=fetchLogs') // Note: I need to add this action to doGet
+                    .then(r => r.json())
+                    .then(handleSuccess)
+                    .catch(err => {
+                        console.error('Log fetch error:', err);
+                        handleSuccess(logs); // fallback to local
+                    });
+            }
+        }
+
+        window.renderTable = function () {
+            console.log('renderTable() called. Tab:', currentTab, 'Assets:', assets.length);
+            const tbody = document.getElementById('assetTableBody');
+            const emptyState = document.getElementById('emptyState');
+            if (!tbody) {
+                console.error('FATAL: assetTableBody not found in DOM');
+                return;
+            }
+            tbody.innerHTML = '';
+
+            if (document.getElementById('empty-text')) document.getElementById('empty-text').textContent = 'No assets found.';
+
+            const filtered = assets.filter(asset => {
+                if (!asset) return false;
+                // Search
+                if (currentSearch) {
+                    const s = currentSearch.toLowerCase();
+                    // Optimized Search: Target Specific Columns for relevance
+                    const searchCols = ['id', 'assigned_to', 'serial_number', 'model', 'brand', 'ip', 'desk'];
+                    const matches = searchCols.some(col => {
+                        const val = asset[col];
+                        return val && val.toString().toLowerCase().includes(s);
+                    });
+                    if (!matches) return false;
+                }
+
+                // Normalize for comparison
+                const status = (asset.status || '').trim().toLowerCase();
+                const type = (asset.device_type || '').trim().toLowerCase();
+                // Also check description/model if type is missing? For now rely on type.
+
+                const isInUse = status === 'active' || status === 'in use';
+                const isInStock = status.includes('stock') || status === 'spare' || status === 'available';
+
+                // Tab Filters
+                if (currentTab === 'active') {
+                    const isMainSystem = type.includes('laptop') || type.includes('desktop') || type.includes('cpu') ||
+                        type.includes('pc') || type.includes('computer') || type.includes('workstation') || (asset.id ||
+                            '').toLowerCase().includes('lap') || (asset.id || '').toLowerCase().includes('desk');
+                    if (!isInUse || !isMainSystem) return false;
+                }
+
+                if (currentTab === 'active_laptop' || currentTab === 'active_desktop') {
+                    if (!isInUse) return false;
+                    const cat = getAssetCategory(asset);
+                    if (currentTab === 'active_laptop' && cat !== 'laptop') return false;
+                    if (currentTab === 'active_desktop' && cat !== 'desktop') return false;
+                }
+                // Broken filters
+                if (currentTab === 'broken' && status !== 'broken' && status !== 'scrap' && status !== 'repair' &&
+                    status !== 'damaged') return false;
+
+                // Stock Category Filters
+                if (currentTab.startsWith('stock_')) {
+                    if (!isInStock) return false;
+
+                    const id = (asset.id || '').toLowerCase(); // Use ID for smarter classification
+
+                    // Classification Logic (Check Type OR ID Pattern)
+                    // Classification Logic (Check Type OR ID Pattern)
+                    // Added explicit checks for: KYBD, MOUS, PC based on user feedback
+                    const isLaptop = type.includes('laptop') || id.includes('lap');
+                    const isDesktop = type.includes('desktop') || type.includes('cpu') || type.includes('pc') ||
+                        type.includes('computer') || type.includes('workstation') || id.includes('desk') ||
+                        id.includes('cpu') || id.includes('sys') || id.includes('srv') || id.includes('tower') ||
+                        id.includes('pc');
+                    const isMonitor = type.includes('monitor') || type.includes('screen') || id.includes('mon');
+                    const isKb = type.includes('keyboard') || id.includes('kb') || id.includes('key') ||
+                        id.includes('board') || id.includes('input') || id.includes('kybd');
+                    const isMouse = type.includes('mouse') || id.includes('mse') || id.includes('mouse') ||
+                        id.includes('ptr') || id.includes('mous');
+
+                    if (currentTab === 'stock_laptop' && !isLaptop) return false;
+                    if (currentTab === 'stock_desktop' && !isDesktop) return false;
+                    if (currentTab === 'stock_monitor' && !isMonitor) return false;
+                    if (currentTab === 'stock_kb' && !isKb) return false;
+                    if (currentTab === 'stock_mouse' && !isMouse) return false;
+
+                    // "Other" -> Not any of the above
+                    if (currentTab === 'stock_other') {
+                        if (isLaptop || isDesktop || isMonitor || isKb || isMouse) return false;
+                    }
+                }
+
+                // Deployed Component Filters
+                if (currentTab.startsWith('deployed_')) {
+                    if (!isInUse) return false;
+
+                    const id = (asset.id || '').toLowerCase();
+                    const isMonitor = type.includes('monitor') || type.includes('screen') || id.includes('mon');
+                    const isKb = type.includes('keyboard') || id.includes('kb') || id.includes('key') ||
+                        id.includes('board') || id.includes('input') || id.includes('kybd');
+                    const isMouse = type.includes('mouse') || id.includes('mse') || id.includes('mouse') ||
+                        id.includes('ptr') || id.includes('mous');
+
+                    if (currentTab === 'deployed_monitor' && !isMonitor) return false;
+                    if (currentTab === 'deployed_kb' && !isKb) return false;
+                    if (currentTab === 'deployed_mouse' && !isMouse) return false;
+                }
+
+                return true;
+            });
+
+            document.getElementById('total-count').textContent = (filtered.length) + ' Items';
+
+            if (filtered.length === 0) {
+                emptyState.classList.remove('hidden');
+                return;
+            }
+            emptyState.classList.add('hidden');
+
+            filtered.forEach(asset => {
+                const tr = document.createElement('tr');
+                tr.className = 'asset-row group border-b border-white/5 last:border-0';
+
+                const s = (asset.status || '').toLowerCase();
+                let statusBadge = '<span class="badge badge-stock">' + (asset.status) + '</span>';
+                if (s === 'in use' || s === 'active' || s.includes('use')) statusBadge = '<span class="badge badge-active">IN USE</span > ';
+                if (s === 'broken' || s === 'scrap' || s === 'repair') statusBadge = '<span class="badge badge-broken" > Broken / Scrap</span > ';
+
+                tr.innerHTML = `
+    <td class="px-6 py-4">
+        <input type="checkbox"
+            class="asset-checkbox rounded border-white/10 bg-slate-900 text-blue-600 focus:ring-blue-500"
+            value="${asset.id}" onchange="updateBulkBar()">
+    </td>
+    <td class="px-6 py-4 font-medium text-white font-mono">${asset.id}</td>
+    <td class="px-6 py-4 text-slate-300 font-bold text-[10px] uppercase tracking-wider">
+        ${asset.device_type || '-'}</td>
+    <td class="px-6 py-4 text-slate-300">
+        ${asset.assigned_to ? `<div class="flex items-center gap-2">
+            <div
+                class="w-6 h-6 rounded-full bg-blue-500/20 text-blue-400 text-xs flex items-center justify-center font-bold">
+                ${asset.assigned_to.charAt(0)}</div>${asset.assigned_to}
+        </div>` : '<span class="text-slate-600 italic">None</span>'}
+    </td>
+    <td class="px-6 py-4">${statusBadge}</td>
+    <td class="px-6 py-4 text-slate-400 text-xs font-mono">${asset.location || '-'}</td>
+    <td class="px-6 py-4 text-right flex justify-end gap-2">
+        <button onclick="viewDetails('${asset.id}')"
+            class="p-2 rounded-lg text-slate-500 hover:text-blue-400 hover:bg-white/5 transition-all"
+            title="View Details"><i class="ri-eye-line"></i></button>
+        ${currentUserRole === 'admin' ?
+                        `<button onclick="editAsset('${asset.id}')"
+            class="p-2 rounded-lg text-slate-500 hover:text-yellow-400 hover:bg-white/5 transition-all" title="Edit"><i
+                class="ri-pencil-line"></i></button>`
+                        : ''}
+    </td>
+    `;
+                tbody.appendChild(tr);
+            });
+        }
+
+
+        // --- Helper: Asset Classification ---
+        function getAssetCategory(asset) {
+            if (!asset) return 'other';
+            const type = (asset.device_type || '').trim().toLowerCase();
+            const id = (asset.id || '').toLowerCase();
+
+            if (type.includes('laptop') || id.includes('lap')) return 'laptop';
+            if (type.includes('desktop') || type.includes('cpu') || type.includes('pc') || id.includes('desk')
+                || id.includes('cpu') || id.includes('sys') || id.includes('srv') || id.includes('tower') ||
+                id.includes('pc')) return 'desktop';
+            if (type.includes('monitor') || type.includes('screen') || id.includes('mon')) return 'monitor';
+            if (type.includes('keyboard') || id.includes('kb') || id.includes('key') || id.includes('board') ||
+                id.includes('input') || id.includes('kybd')) return 'kb';
+            if (type.includes('mouse') || id.includes('mse') || id.includes('mouse') || id.includes('ptr') ||
+                id.includes('mous')) return 'mouse';
+            return 'other';
+        }
+
+        function unlinkComponentFromParent(compAsset) {
+            const sn = (compAsset.serial_number || compAsset.id || '').trim().toLowerCase();
+            if (!sn) return;
+
+            let foundParent = false;
+            assets.forEach(parent => {
+                if (!parent || !parent.id) return;
+                // Only check "Main Systems" (Laptops/Desktops)
+                const type = (parent.device_type || '').toLowerCase();
+                const isPC = type.includes('laptop') || type.includes('desktop') || type.includes('cpu') ||
+                    type.includes('pc');
+                if (!isPC) return;
+
+                // Check all component SN fields
+                const snFields = [
+                    { model: 'mon_pri', sn: 'sn_mon_pri' },
+                    { model: 'mon_sec', sn: 'sn_mon_sec' },
+                    { model: 'kb', sn: 'sn_kb' },
+                    { model: 'mouse', sn: 'sn_mouse' },
+                    { model: 'head', sn: 'sn_head' },
+                    { model: 'cam', sn: 'sn_cam' }
+                ];
+
+                snFields.forEach(field => {
+                    if ((parent[field.sn] || '').trim().toLowerCase() === sn) {
+                        // Found the link! Clear it.
+                        parent[field.sn] = '';
+                        parent[field.model] = '';
+                        foundParent = true;
+                        addLog('AUTO-UNLINK', 'Auto-cleared ' + (compAsset.device_type) + ' (' + (compAsset.id) + ') from parent PC\n    ' + (parent.id));
+                        syncToSheet('UPDATE', parent); // Sync the PC update too
+                    }
+                });
+            });
+
+            if (foundParent) {
+                saveAndRender(); // Refresh UI to show cleared parent
+            }
+        }
+
+        // --- Bulk Operations ---
+        function toggleSelectAll(master) {
+            const isChecked = typeof master === 'boolean' ? master : master.checked;
+            const checks = document.querySelectorAll('.asset-checkbox');
+            checks.forEach(c => c.checked = isChecked);
+            if (typeof master === 'boolean') {
+                const mainCheck = document.getElementById('selectAll');
+                if (mainCheck) mainCheck.checked = isChecked;
+            }
+            updateBulkBar();
+        }
+
+        function updateBulkBar() {
+            const selected = document.querySelectorAll('.asset-checkbox:checked');
+            const bar = document.getElementById('bulk-bar');
+            const countEl = document.getElementById('bulk-count');
+
+            if (selected.length > 0) {
+                countEl.textContent = selected.length;
+                bar.classList.remove('translate-y-32');
+            } else {
+                bar.classList.add('translate-y-32');
+                const mainCheck = document.getElementById('selectAll');
+                if (mainCheck) mainCheck.checked = false;
+            }
+        }
+
+        window.bulkDelete = function () {
+            const selected = Array.from(document.querySelectorAll('.asset-checkbox:checked')).map(c => c.value);
+            if (confirm('Delete ' + (selected.length) + ' items? This will remove them from the dashboard. Please\n    manually remove from Google Sheets if needed or perform a Full Sync.')) {
+                assets = assets.filter(a => !selected.includes(a.id));
+                saveAndRender();
+                showToast('Bulk Action', (selected.length) + ' items removed locally.', 'success');
+                // Batch delete for Google Sheets can be complex, so we advise manual cleanup or Sync Data trigger.
+            }
+        }
+
+        window.bulkStatusChange = async function () {
+            const selected = Array.from(document.querySelectorAll('.asset-checkbox:checked')).map(c => c.value);
+            const newStatus = prompt('Enter new status for ' + (selected.length) + ' items (IN USE, In Stock, Broken,\n    Scrap):');
+            if (!newStatus) return;
+
+            const updatedAssets = [];
+            selected.forEach(id => {
+                const asset = assets.find(a => a.id === id);
+                if (asset) {
+                    asset.status = newStatus;
+                    updatedAssets.push(asset);
+                }
+            });
+
+            saveAndRender();
+            showToast('Bulk Action', 'Status updated for ' + (selected.length) + ' items locally. Syncing to cloud...',
+                'info');
+
+            // Sync each to sheet if possible
+            if (typeof google !== 'undefined' && google.script && google.script.run) {
+                let successCount = 0;
+                for (const asset of updatedAssets) {
+                    await new Promise(resolve => {
+                        google.script.run.withSuccessHandler(() => {
+                            successCount++;
+                            resolve();
+                        }).upsertAssetNative(asset, currentUserRole);
+                    });
+                }
+                showToast('Cloud Sync', 'Batch update complete for ' + (successCount) + ' assets.', 'success');
+            } else {
+                showToast('Sync Notice', 'Please click "Sync Data" to persist changes to Google Sheets.',
+                    'warning');
+            }
+        }
+
+        window.bulkScrap = async function () {
+            const selected = Array.from(document.querySelectorAll('.asset-checkbox:checked')).map(c => c.value);
+            if (!confirm('Are you sure you want to move ' + (selected.length) + ' items to SCRAP?')) return;
+
+            const updatedAssets = [];
+            selected.forEach(id => {
+                const asset = assets.find(a => a.id === id);
+                if (asset) {
+                    asset.status = 'Scrap';
+                    updatedAssets.push(asset);
+                }
+            });
+
+            saveAndRender();
+            showToast('Bulk Action', 'Moving ' + (selected.length) + ' items to Scrap locally...', 'info');
+
+            if (typeof google !== 'undefined' && google.script && google.script.run) {
+                for (const asset of updatedAssets) {
+                    await new Promise(resolve => {
+                        google.script.run.withSuccessHandler(resolve).upsertAssetNative(asset, currentUserRole);
+                    });
+                }
+                showToast('Cloud Sync', 'Bulk Scrap complete.', 'success');
+            }
+        }
+
+        window.updateStats = function () {
+            // 1. Core Stats
+            const inStockAssets = assets.filter(a => {
+                const s = (a.status || '').trim().toLowerCase();
+                return s.includes('stock') || s === 'spare' || s === 'available';
+            });
+            const statStock = document.getElementById('statStock');
+            if (statStock) statStock.textContent = inStockAssets.length;
+
+            const brokenCount = assets.filter(a => {
+                const s = (a.status || '').trim().toLowerCase();
+                return s === 'broken' || s === 'scrap' || s === 'repair' || s === 'damaged';
+            }).length;
+            const statBroken = document.getElementById('statBroken');
+            if (statBroken) statBroken.textContent = brokenCount;
+            const statBrokenSide = document.getElementById('statBroken-side');
+            if (statBrokenSide) statBrokenSide.textContent = brokenCount;
+
+            // 2. Financial Stat (Price calculation)
+            const totalValue = assets.reduce((sum, asset) => {
+                const p = parseFloat(asset.price);
+                return isNaN(p) ? sum : sum + p;
+            }, 0);
+            const valEl = document.getElementById('statValue');
+            if (valEl) valEl.textContent = totalValue.toLocaleString('en-IN');
+            const valElAn = document.getElementById('statValue-Analytics');
+            if (valElAn) valElAn.textContent = totalValue.toLocaleString('en-IN');
+
+            // 3. Granular Stock & Deployed Counters (Sidebar)
+            const counts = {
+                active_laptop: 0,
+                active_desktop: 0,
+                stock_laptop: 0, stock_desktop: 0, stock_monitor: 0, stock_kb: 0, stock_mouse: 0, stock_other: 0,
+                deployed_monitor: 0, deployed_kb: 0, deployed_mouse: 0
+            };
+
+            assets.forEach(asset => {
+                if (!asset || !asset.id) return;
+                const s = (asset.status || '').trim().toLowerCase();
+                const cat = getAssetCategory(asset);
+                const isInUse = s === 'active' || s === 'in use';
+
+                // Count In-Use Systems
+                if (isInUse) {
+                    if (cat === 'laptop') counts.active_laptop++;
+                    if (cat === 'desktop') counts.active_desktop++;
+                }
+
+                // Count Stock
+                if (s.includes('stock') || s === 'spare' || s === 'available') {
+                    if (counts['stock_' + (cat)] !== undefined) counts['stock_' + (cat)]++;
+                    else counts.stock_other++;
+                }
+
+                // Count Deployed
+                if (isInUse) {
+                    if (counts['deployed_' + (cat)] !== undefined) counts['deployed_' + (cat)]++;
+                }
+            });
+
+            // Update Elements
+            const statActive = document.getElementById('statActive');
+            if (statActive) statActive.textContent = counts.active_laptop + counts.active_desktop;
+
+            const statStockGlobal = document.getElementById('statStock');
+            if (statStockGlobal) {
+                statStockGlobal.textContent = assets.filter(a => {
+                    const s = (a.status || '').trim().toLowerCase();
+                    return s.includes('stock') || s === 'spare' || s === 'available';
+                }).length;
+            }
+
+            Object.keys(counts).forEach(key => {
+                const el = document.getElementById('count-' + (key));
+                if (el) el.textContent = counts[key];
+            });
+
+            // 4. ISP Renewal Tracking
+            const ispLines = assets.filter(a => a.sheetName === 'Internet_Lines');
+            const expiringSoon = ispLines.filter(line => {
+                const expiry = new Date(line.warranty_expiry || '');
+                const diff = (expiry - new Date()) / (1000 * 60 * 60 * 24);
+                return diff < 30;
+            }); const statISP = document.getElementById('statISP'); if (statISP)
+                statISP.textContent = ispLines.length; const ispAlert = document.getElementById('statISPAlert'); if (ispAlert) {
+                    if
+                        (expiringSoon.length > 0) {
+                        ispAlert.classList.remove('hidden');
+                        ispAlert.textContent = expiringSoon.length + " Due";
+                    } else {
+                        ispAlert.classList.add('hidden');
+                    }
+                }
+        }
+
+        window.updateSidebarAlerts = function () {
+            let hasAlerts = false;
+            const peripheralCategories = [
+                { id: 'stock_monitor', typeMatch: 'monitor', idMatch: 'mon' },
+                { id: 'stock_kb', typeMatch: 'keyboard', idMatch: 'kb' },
+                { id: 'stock_mouse', typeMatch: 'mouse', idMatch: 'mse' }
+            ];
+
+            peripheralCategories.forEach(cat => {
+                const count = assets.filter(asset => {
+                    const status = (asset.status || '').trim().toLowerCase();
+                    const isInStock = status.includes('stock') || status === 'spare' || status === 'available';
+                    if (!isInStock) return false;
+                    const type = (asset.device_type || '').toLowerCase();
+                    const id = (asset.id || '').toLowerCase();
+                    return type.includes(cat.typeMatch) || id.includes(cat.idMatch);
+                }).length;
+
+                const btn = document.getElementById('nav-' + (cat.id));
+                if (btn) {
+                    const existingAlert = btn.querySelector('.low-stock-alert');
+                    if (existingAlert) existingAlert.remove();
+
+                    if (count < 5) {
+                        const badge = document.createElement('span');
+                        badge.className = "low-stock-alert ml-auto px-1.5 py-0.5 bg-red-500 text-white text-[8px] font-bold rounded-full animate-pulse shadow-lg shadow-red-500/20"
+                            ; badge.textContent = 'LOW'; btn.appendChild(badge); hasAlerts = true;
+                    }
+                }
+            }); // Toggle Global Indicator
+            const brokenCount = assets.filter(a => {
+                const s = (a.status || '').trim().toLowerCase();
+                return s === 'broken' || s === 'scrap' || s === 'repair';
+            }).length;
+
+            const indicator = document.getElementById('critical-alert-indicator');
+            if (indicator) {
+                if (hasAlerts || brokenCount > 0) indicator.classList.remove('hidden');
+                else indicator.classList.add('hidden');
+            }
+        }
+        window.viewDetails = function (id) {
+            const asset = assets.find(a => a.id === id);
+            if (!asset) return;
+
+            editingId = id; // Store for copy link
+            document.getElementById('view-id').textContent = asset.id;
+            document.getElementById('view-status').textContent = asset.status;
+
+            // NEW: Lifecycle fields
+            document.getElementById('view-purchase').textContent = asset.purchase_date || '-';
+            document.getElementById('view-warranty').textContent = asset.warranty_expiry || '-';
+            document.getElementById('view-price').textContent = asset.price ? '₹' +
+                parseFloat(asset.price).toLocaleString('en-IN') : '₹0';
+
+            const container = document.getElementById('view-details-grid');
+            container.innerHTML = '';
+
+            // Render all fields dynamically based on SCHEMA
+            SCHEMA.forEach(field => {
+                if (field.key === 'id') return;
+                const label = field.label;
+                const val = asset[field.key] || '-';
+
+                container.innerHTML += `
+                    <div class="border-b border-white/5 pb-2">
+                        <div class="text-[10px] uppercase tracking-wider text-slate-500 font-bold mb-1">${label}</div>
+                        <div class="text-sm text-slate-200 break-words">${val}</div>
+                    </div>
+                `;
+            });
+
+            const modal = document.getElementById('viewModal');
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                modal.classList.remove('opacity-0');
+                modal.querySelector('div').classList.remove('scale-95');
+            }, 10);
+        }
+
+        function copyMobileLink() {
+            if (!editingId) return;
+            const cleanUrl = (GAS_API_URL || '').trim().replace(/\/$/, "");
+            if (!cleanUrl || cleanUrl.includes('AKfycbyyWDdg')) {
+                showToast('Config Error', 'Please set valid Cloud URL in Settings first.', 'error');
+                return;
+            }
+            const link = (cleanUrl) + '?asset=' + (encodeURIComponent(editingId));
+            navigator.clipboard.writeText(link).then(() => {
+                showToast('Link Copied', 'Mobile portal link copied!', 'success');
+            });
+        }
+
+        function closeViewModal() {
+            const modal = document.getElementById('viewModal');
+            modal.classList.add('opacity-0');
+            modal.querySelector('div').classList.add('scale-95');
+            setTimeout(() => modal.classList.add('hidden'), 300);
+        }
+
+        // --- Add / Save Logic (Updated for 33 fields) ---
+
+        // State for Editing
+        let editingId = null;
+        let editingSheet = 'Stock_Inventory'; // Default sheet
+
+        function openAddModalAndReset() {
+            editingId = null;
+            document.getElementById('modal-title').textContent = 'Add New Asset';
+            document.getElementById('inp-id').disabled = false;
+            document.getElementById('inp-id').classList.remove('opacity-50', 'cursor-not-allowed');
+
+            // Clear all inputs
+            document.querySelectorAll('#addModal input, #addModal select').forEach(i => i.value = '');
+            // Default Status
+            document.getElementById('inp-status').value = 'In Stock';
+
+            // Reset Billing UI
+            document.getElementById('file-status').textContent = "Select Bill";
+            document.getElementById('bill-preview-btn').classList.add('hidden');
+            document.getElementById('inp-bill_link').value = '';
+
+            // Fix: Clear file input value to allow re-selection of the same file
+            const fileInput = document.getElementById('inp-file-upload');
+            if (fileInput) fileInput.value = '';
+
+            openAddModal();
+            // Determine default sheet based on current tab
+            editingSheet = (currentTab === 'active' || currentTab.startsWith('active_')) ?
+                'Active_Inventory' : 'Stock_Inventory';
+            toggleFormFields();
+        }
+
+        function toggleFormFields() {
+            const type = document.getElementById('inp-type').value;
+            // Check if it's an ISP line based on selected type OR current editing sheet
+            const isISP = type === 'INTERNET LINE' || editingSheet === 'Internet_Lines';
+
+            const gISP = document.getElementById('group-isp');
+            const gSpecs = document.getElementById('group-specs');
+            const gComps = document.getElementById('group-components');
+            const gNetExtra = document.getElementById('group-network-extra');
+
+            // Common info fields to hide for ISP
+            const cAssigned = document.getElementById('container-assigned');
+            const cLocation = document.getElementById('container-location');
+            const cDesk = document.getElementById('container-desk');
+
+            if (isISP) {
+                if (gISP) gISP.classList.remove('hidden');
+                if (gSpecs) gSpecs.classList.add('hidden');
+                if (gComps) gComps.classList.add('hidden');
+                if (gNetExtra) gNetExtra.classList.add('hidden');
+
+                if (cAssigned) cAssigned.classList.add('hidden');
+                if (cLocation) cLocation.classList.add('hidden');
+                if (cDesk) cDesk.classList.add('hidden');
+            } else {
+                if (gISP) gISP.classList.add('hidden');
+                if (gSpecs) gSpecs.classList.remove('hidden');
+                if (gComps) gComps.classList.remove('hidden');
+                if (gNetExtra) gNetExtra.classList.remove('hidden');
+
+                if (cAssigned) cAssigned.classList.remove('hidden');
+                if (cLocation) cLocation.classList.remove('hidden');
+                if (cDesk) cDesk.classList.remove('hidden');
+            }
+        }
+
+        window.openAddModal = function () {
+            const modal = document.getElementById('addModal');
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                modal.classList.remove('opacity-0');
+                document.getElementById('addModalContent').classList.remove('scale-95');
+            }, 10);
+            if (!editingId) document.getElementById('inp-id').focus();
+        }
+
+
+        window.editAsset = function (id) {
+            if (currentUserRole !== 'admin') {
+                viewDetails(id);
+                return;
+            }
+            const asset = assets.find(a => a.id === id);
+            if (!asset) return;
+
+            editingId = id;
+            editingSheet = asset.sheetName || 'Stock_Inventory';
+            document.getElementById('modal-title').textContent = 'Edit Asset';
+
+            // Disable ID Input
+            const idInput = document.getElementById('inp-id');
+            idInput.disabled = true;
+            idInput.classList.add('opacity-50', 'cursor-not-allowed');
+
+            // Fill Inputs Dynamically based on SCHEMA
+            SCHEMA.forEach(field => {
+                const val = asset[field.key] || '';
+                // Construct Element ID: 'inp-' + key (e.g., inp-ram, inp-model)
+                // Exceptions: 'device_type' is mapped to 'inp-type' in HTML? No, let's fix HTML to match
+                // schema or handle exception
+                // Actually earlier HTML had 'inp-type' for device_type. Let's start normalizing HTML IDs to
+                // 'inp-{key}' ?
+                // OR handle the exception here for now to avoid massive HTML refactor.
+
+                let elId = 'inp-' + (field.key);
+                // Special mappings based on HTML observation
+                if (field.key === 'device_type') elId = 'inp-type';
+                if (field.key === 'assigned_to') elId = 'inp-assigned';
+                if (field.key === 'serial_number') elId = 'inp-serial';
+
+                const el = document.getElementById(elId);
+                if (el) {
+                    // Case-insensitive match for dropdowns to prevent blanking
+                    if (el.tagName === 'SELECT') {
+                        const option = Array.from(el.options).find(o => o.value.toLowerCase() ===
+                            val.toLowerCase());
+                        if (option) el.value = option.value;
+                    } else {
+                        el.value = val;
+                    }
+                }
+            });
+
+            // Handle Billing Preview in Edit Mode
+            const billLink = asset.bill_link || '';
+            const previewBtn = document.getElementById('bill-preview-btn');
+            const fileStatus = document.getElementById('file-status');
+            const removeBtn = document.getElementById('btn-remove-bill');
+
+            if (billLink) {
+                fileStatus.textContent = "Bill Attached";
+                previewBtn.classList.remove('hidden');
+                if (removeBtn) removeBtn.classList.remove('hidden');
+            } else {
+                fileStatus.textContent = "Select Bill";
+                previewBtn.classList.add('hidden');
+            }
+
+            // Fix: Clear file input value to allow re-selection of the same file
+            const fileInput = document.getElementById('inp-file-upload');
+            if (fileInput) fileInput.value = '';
+
+            openAddModal();
+            toggleFormFields();
+        }
+
+        window.closeAddModal = function () {
+            const modal = document.getElementById('addModal');
+            modal.classList.add('opacity-0');
+            document.getElementById('addModalContent').classList.add('scale-95');
+            setTimeout(() => modal.classList.add('hidden'), 300);
+            editingId = null; // Reset
+        }
+
+        window.saveNewAsset = function () {
+            try {
+                const idInput = document.getElementById('inp-id');
+                if (!idInput) throw new Error('Input ID element missing');
+
+                const idVal = idInput.value.trim();
+                if (!idVal) { showToast('Error', 'Asset ID is required', 'error'); return; }
+
+                // Start with existing data if editing to prevent data loss on missing fields
+                let oldAsset = null;
+                let newAsset = {};
+
+                if (editingId) {
+                    oldAsset = assets.find(a => a.id === editingId);
+                    if (oldAsset) {
+                        newAsset = JSON.parse(JSON.stringify(oldAsset)); // Deep clone existing
+                    }
+                }
+
+                // Collect Data Dynamically
+                SCHEMA.forEach(field => {
+                    let elId = 'inp-' + (field.key);
+                    if (field.key === 'device_type') elId = 'inp-type';
+                    if (field.key === 'assigned_to') elId = 'inp-assigned';
+                    if (field.key === 'serial_number') elId = 'inp-serial';
+
+                    const el = document.getElementById(elId);
+                    if (el) {
+                        // Important: Only overwrite if element exists
+                        newAsset[field.key] = el.value.trim();
+                    }
+                });
+
+                // Set Sheet Name
+                newAsset.sheetName = editingSheet;
+
+                // Ensure ID is set
+                newAsset.id = idVal;
+
+                // Inference for Device Type if empty
+                if (!newAsset.device_type) {
+                    const id = newAsset.id.toLowerCase();
+                    if (id.includes('lap')) newAsset.device_type = 'LAPTOP';
+                    else if (id.includes('desk') || id.includes('cpu') || id.includes('pc'))
+                        newAsset.device_type = 'DESKTOP';
+                    else if (id.includes('mon')) newAsset.device_type = 'MONITOR';
+                    else newAsset.device_type = 'OTHER';
+                }
+
+                if (editingId && oldAsset) {
+                    // DETECTION: Auto-Archive replaced components
+                    const components = [
+                        { model: 'mon_pri', sn: 'sn_mon_pri', label: 'Monitor' },
+                        { model: 'mon_sec', sn: 'sn_mon_sec', label: 'Monitor' },
+                        { model: 'kb', sn: 'sn_kb', label: 'Keyboard' },
+                        { model: 'mouse', sn: 'sn_mouse', label: 'Mouse' },
+                        { model: 'head', sn: 'sn_head', label: 'Headphone' },
+                        { model: 'cam', sn: 'sn_cam', label: 'Camera' }
+                    ];
+
+                    components.forEach(comp => {
+                        const oldSn = (oldAsset[comp.sn] || '').trim();
+                        const newSn = (newAsset[comp.sn] || '').trim();
+                        const oldModel = (oldAsset[comp.model] || '').trim();
+
+                        // If serial changed OR removed
+                        if (oldSn && oldSn !== newSn) {
+                            moveComponentToScrap(oldSn, comp.label, oldAsset, oldModel);
+                            addLog('AUTO-SCRAP', 'Processed replacement/removal of ' + (comp.label) + ' (' + (oldSn) + ') from\n            ' + (oldAsset.id) + '.');
+                        }
+                    });
+
+                    // Check for Component De-allocation
+                    const wasInUse = (oldAsset.status === 'IN USE' || oldAsset.status === 'ACTIVE');
+                    const isNowStock = (newAsset.status !== 'IN USE' && newAsset.status !== 'ACTIVE');
+                    if (wasInUse && isNowStock) {
+                        unlinkComponentFromParent(newAsset);
+                    }
+
+                    // Update Logic
+                    const idx = assets.findIndex(a => a.id === editingId);
+                    if (idx !== -1) {
+                        assets[idx] = newAsset;
+                        addLog('UPDATE', 'Updated asset ' + (editingId) + '.');
+                        syncToSheet('UPDATE', newAsset); // Cloud Sync
+                        showToast('Success', 'Asset Updated', 'success');
+                    } else {
+                        throw new Error('Original asset not found for update');
+                    }
+                } else {
+                    // Create Logic
+                    assets.push(newAsset);
+                    addLog('ADD', 'Created new asset ' + (newAsset.id) + ' (' + (newAsset.device_type || 'Unknown') + ').');
+                    syncToSheet('ADD', newAsset); // Cloud Sync
+                    showToast('Success', 'Asset Added', 'success');
+                }
+
+                saveAndRender();
+                closeAddModal();
+            } catch (e) {
+                console.error(e);
+                showToast('System Error', e.message, 'error');
+            }
+        }
+
+        window.deleteAsset = function (id) {
+            if (confirm('Delete asset ' + (id) + '?')) {
+                assets = assets.filter(a => a.id !== id);
+                addLog('DELETE', 'Deleted asset ' + (id) + '.');
+                syncToSheet('DELETE', { id: id }); // Cloud Sync
+                saveAndRender();
+                showToast('Deleted', 'Asset ' + (id) + ' removed successfully.', 'success');
+            }
+        }
+
+        // --- Search Listener ---
+        document.getElementById('searchInput').addEventListener('input', (e) => {
+            currentSearch = e.target.value;
+            renderTable();
+        });
+
+        const typeSelect = document.getElementById('inp-type');
+        if (typeSelect) typeSelect.addEventListener('change', toggleFormFields);
+
+        // --- Swap Logic (Simplified for new schema) ---
+        // --- User Details Portal Logic ---
+        function searchAssetPortal() {
+            const idInput = document.getElementById('portalSearchId');
+            const id = idInput.value.trim();
+
+            if (!id) {
+                showToast('Error', 'Please enter an Asset ID.', 'error');
+                return;
+            }
+
+            // Case-insensitive lookup
+            const asset = assets.find(a => a.id.toLowerCase() === id.toLowerCase());
+
+            if (!asset) {
+                showToast('Error', 'Asset "' + (id) + '" not found.', 'error');
+                return;
+            }
+
+            // Role-based redirection
+            if (currentUserRole === 'admin') {
+                editAsset(asset.id);
+            } else {
+                viewDetails(asset.id);
+            }
+            idInput.value = ''; // Clear input
+        }
+
+
+
+        function updateCloudUI(connected) {
+            const badge = document.getElementById('cloud-status-badge');
+            const pullBtn = document.getElementById('btn-pull');
+            if (!badge) return;
+
+            if (connected) {
+                badge.className = "cursor-pointer px-2 py-1 rounded border flex items-center gap-1.5 transition-all bg-green-600/10 text-green-400 border-green-500/30 hover:bg-green-600/20";
+                badge.innerHTML = `<div class="w-1.5 h-1.5 rounded-full bg-green-400"></div><span class="text-[10px] font-bold uppercase tracking-wider">Cloud Connected</span>`;
+                if (pullBtn) pullBtn.classList.remove('hidden');
+            } else {
+                badge.className = "cursor-pointer px-2 py-1 rounded border flex items-center gap-1.5 transition-all bg-red-600/10 text-red-400 border-red-500/30 hover:bg-red-600/20";
+                badge.innerHTML = `<div class="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse"></div><span class="text-[10px] font-bold uppercase tracking-wider">Connect Google Sheet</span>`;
+                if (pullBtn) pullBtn.classList.add('hidden');
+            }
+        }
+
+        // --- Cloud Sync ---
+        window.pullFromCloud = function (silent = false) {
+            console.log('pullFromCloud() triggered. Silent:', silent);
+            if (!silent) showToast('Syncing...', 'Fetching data from Google Sheet...', 'info');
+
+            const isGAS = typeof google !== 'undefined' && google.script && google.script.run;
+            console.log('Environment: ' + (isGAS ? 'Google Apps Script' : 'External/Local'));
+
+            const handleSuccess = function (raw) {
+                console.log('Server Raw Response Received. Length:', (raw || "").length);
+                try {
+                    if (typeof raw === 'string' && raw.trim().startsWith(' < !DOCTYPE html > ')) {
+                        throw new Error("Received HTML instead of JSON. This usually means the Google Apps Script Web App is not deployed correctly or requires logging in. Use 'Setup Help' in the sidebar.");
+                    }
+
+                    const res = typeof raw === 'string' ? JSON.parse(raw) : raw;
+                    if (!res) {
+                        console.error('SERVER RETURNED NULL:', raw);
+                        throw new Error("Empty response from script. Please check your Web App URL and ensure it's deployed for 'Anyone'.");
+                    }
+                    if (res.status === 'success' && res.data) {
+                        console.log('Pull Success: Found ' + (res.data.length) + ' total raw items');
+                        const uniqueSheets = [...new Set(res.data.map(item => item.sheetName))];
+                        console.log('Sheets found in data:', uniqueSheets);
+
+                        // Smart Map Sheet Data to Local Schema
+                        const headerKeywords = ['computer', 'keyboard', 'mouse', 'spaigard', 'monitor', 'printer',
+                            'headphone', 'camera'];
+
+                        const mappedAssets = res.data
+                            .filter(item => {
+                                if (!item || typeof item !== 'object') return false;
+                                const idKey = Object.keys(item).find(k => k.toLowerCase().includes('id'));
+                                const idVal = idKey ? (item[idKey] || '').toString().trim() : '';
+                                if (!idVal || idVal.toLowerCase().includes('timestamp') ||
+                                    idVal.toLowerCase().includes('date')) return false;
+                                if (headerKeywords.includes(idVal.toLowerCase())) return false;
+                                return true;
+                            })
+                            .map(item => {
+                                const mapped = {};
+                                const findInItem = (keywords) => {
+                                    return Object.keys(item).find(k => {
+                                        const lowK = k.toLowerCase();
+                                        if (lowK.includes('timestamp') || lowK.includes('date')) return false;
+                                        return keywords.some(kw => lowK.includes(kw));
+                                    });
+                                };
+
+                                const isLikelyId = (val) => {
+                                    if (!val) return false;
+                                    const s = val.toString().trim();
+                                    if (s.length < 3) return false; if (s.includes('GMT') || s.includes('Standard Time') ||
+                                        (s.split('/').length > 2 && s.indexOf(':') !== -1)) return false;
+                                    const lowS = s.toLowerCase();
+                                    const commonWords = ["cpu", "monitor", "keyboard", "mouse", "camera", "headphone",
+                                        "headset", "laptop", "desktop", "in use", "in stock", "scrap", "broken", "repair",
+                                        "assigned", "active"];
+                                    if (commonWords.includes(lowS)) return false;
+                                    if (lowS.includes('env-') || lowS.includes('pc-') || lowS.includes('lap-') ||
+                                        lowS.includes('it-') || lowS.includes('mon-')) return true;
+                                    if (s.includes('-') && /[0-9]/.test(s)) return true;
+                                    if (/^\d+$/.test(s) && s.length >= 3) return true;
+                                    return false;
+                                };
+
+                                SCHEMA.forEach(field => {
+                                    let val = '';
+                                    const exactKey = Object.keys(item).find(k => k.toLowerCase() ===
+                                        field.label.toLowerCase() || k.toLowerCase() === field.key.toLowerCase());
+                                    if (exactKey) {
+                                        val = item[exactKey];
+                                    } else {
+                                        let keywords = [field.key.replace('_', ' '), field.label.toLowerCase()];
+                                        if (field.key === 'id') keywords = ['asset id', 'id', 'user asset no', 'machine id'];
+                                        if (field.key === 'storage_type') keywords.push('ssd', 'hdd');
+                                        if (field.key === 'assigned_to') keywords.push('owner', 'user', 'assigned to');
+                                        if (field.key === 'device_type') keywords.push('type', 'category');
+                                        if (field.key.includes('kb')) keywords.push('keyboard');
+                                        if (field.key.includes('mouse')) keywords.push('mouse');
+                                        if (field.key.includes('mon')) keywords.push('monitor');
+                                        if (field.key.includes('head')) keywords.push('headphone');
+                                        if (field.key.includes('cam')) keywords.push('camera', 'camara');
+                                        const matchKey = findInItem(keywords);
+                                        val = matchKey ? item[matchKey] : '';
+                                    }
+
+                                    if (field.key === 'id') {
+                                        if (isLikelyId(val)) {
+                                            mapped.id = val.toString().trim();
+                                        } else {
+                                            const foundId = Object.values(item).find(v => isLikelyId(v));
+                                            mapped.id = (foundId || 'ID-MISSING').toString();
+                                        }
+                                    } else {
+                                        mapped[field.key] = (val || '').toString().trim();
+                                    }
+                                });
+
+                                mapped.sheetName = item.sheetName;
+                                mapped.rowIndex = item.rowIndex;
+
+                                const sName = mapped.sheetName || "";
+                                if (sName === 'Stock_Inventory') {
+                                    const s = (mapped.status || "").toLowerCase();
+                                    if (!s.includes('stock') && !s.includes('broken') && !s.includes('repair') &&
+                                        !s.includes('scrap')) {
+                                        mapped.status = 'In Stock';
+                                    }
+                                } else if (sName === 'Active_Inventory' || sName === 'Floor Inventory') {
+                                    const s = (mapped.status || "").toLowerCase();
+                                    if (!s.includes('use') && !s.includes('active') && !s.includes('repair') &&
+                                        !s.includes('broken') && !s.includes('scrap')) {
+                                        mapped.status = 'IN USE';
+                                    }
+                                } else if (sName === 'Scrap_History') {
+                                    mapped.status = 'Scrap';
+                                }
+                                return mapped;
+                            });
+
+                        // Deduplicate results by ID (User reported duplicates in search)
+                        const seenIds = new Set();
+                        assets = mappedAssets.filter(item => {
+                            if (!item.id || seenIds.has(item.id)) return false;
+                            seenIds.add(item.id);
+                            return true;
+                        });
+
+                        saveAndRender();
+                        const finalISPLines = assets.filter(a => a.sheetName === 'Internet_Lines');
+                        console.log('Mapping Complete: ' + (assets.length) + ' items in local state. ISP Lines:\n                ' + (finalISPLines.length));
+                        if (!silent) showToast('Sync Success', 'Pulled ' + (assets.length) + ' items from Sheet',
+                            'success');
+
+                        // Check for ISP Renewals on Pull
+                        const ispLines = assets.filter(a => a.sheetName === 'Internet_Lines');
+                        const critical = ispLines.filter(line => {
+                            const diff = (new Date(line.warranty_expiry) - new Date()) / (1000 * 60 * 60 * 24);
+                            return diff < 7;
+                        }); if (critical.length > 0 && !silent) {
+                            showToast('ISP RENEWAL DUE', (critical.length) + ' internet lines need renewal within\n                    7 days!', 'error');
+                        }
+
+                        updateCloudUI(true);
+                    } else {
+                        if (!silent) showToast('Sync Error', res.message || 'Fetch failed', 'error');
+                        updateCloudUI(false);
+                    }
+                } catch (e) {
+                    console.error('Processing error:', e);
+                    if (!silent) showToast('Sync Error', 'Data formatting error: ' + e.message,
+                        'error');
+                }
+            };
+
+            const handleFailure = function (err) {
+                console.error('SERVER COMMUNICATION FAILED:', err);
+                if (!silent) showToast('Sync Failed', err.toString(), 'error');
+                else showToast('Sync Failed', 'Cloud communication error. Check console.', 'error');
+                updateCloudUI(false);
+            };
+
+            if (isGAS) {
+                google.script.run
+                    .withSuccessHandler(handleSuccess)
+                    .withFailureHandler(handleFailure)
+                    .fetchAllDataNative();
+            } else {
+                const cleanUrl = (GAS_API_URL || '').trim().replace(/\/$/, ""); // Remove trailing slash if any
+                if (!cleanUrl || !cleanUrl.includes('/macros/s/')) {
+                    showToast('Config Missing', 'Please set your Web App URL in Settings first.',
+                        'error');
+                    updateCloudUI(false);
+                    return;
+                }
+
+                if (!cleanUrl.toLowerCase().endsWith('/exec')) {
+                    showToast('URL Warning', 'Your URL usually should end with /exec. Please verify it.', 'warning');
+                }
+
+                fetch((cleanUrl) + '?action=fetchAll')
+                    .then(response => {
+                        console.log('Fetch response status:', response.status);
+                        if (!response.ok) throw new Error('HTTP error! status: ' + (response.status));
+                        return response.text(); // Get as text first for better debugging
+                    })
+                    .then(text => {
+                        console.log('Received raw text:', text.substring(0, 100) + (text.length > 100 ?
+                            '...' : ''));
+                        try {
+                            return JSON.parse(text);
+                        } catch (e) {
+                            console.error('JSON Parse Error. Content was:', text);
+                            throw new Error("Server returned non-JSON data. Check script deployment settings.");
+                        }
+                    })
+                    .then(handleSuccess)
+                    .catch(err => {
+                        console.error('Fetch error:', err);
+                        let tip = "Ensure 'Who has access' is set to 'Anyone'.";
+                        if (err.message.includes('Unexpected token') || err.message.includes('non-JSON')) {
+                            tip = "Script might be returning an error page or redirect. Check Execution Logs.";
+                        }
+                        showToast('Connection Error', 'Sync Failed: ' + (err.message) + '. ' + (tip), 'error');
+                        updateCloudUI(false);
+                    });
+            }
+        }
+
+        function openSettingsModal() {
+            const modal = document.getElementById('settingsModal');
+            modal.classList.remove('hidden');
+            document.getElementById('setting-gas-url').value = GAS_API_URL;
+            setTimeout(() => {
+                modal.classList.remove('opacity-0');
+                document.getElementById('settingsContent').classList.remove('scale-95');
+            }, 10);
+        }
+
+        function closeSettingsModal() {
+            const modal = document.getElementById('settingsModal');
+            modal.classList.add('opacity-0');
+            document.getElementById('settingsContent').classList.add('scale-95');
+            setTimeout(() => modal.classList.add('hidden'), 300);
+        }
+
+        function saveCloudSettings() {
+            const url = document.getElementById('setting-gas-url').value;
+            if (!url.startsWith('https://script.google.com')) {
+                showToast('Invalid URL', 'Please enter a valid Google Apps Script URL', 'error');
+                return;
+            }
+            setCloudUrl(url);
+            closeSettingsModal();
+            testSyncConnection(); // Test immediately
+        }
+
+        function debugConnection() {
+            showToast('Debugging...', 'Testing connectivity and permissions...', 'info');
+            const cleanUrl = (GAS_API_URL || '').trim().replace(/\/$/, "");
+
+            fetch((cleanUrl) + '?action=heartbeat')
+                .then(r => r.text())
+                .then(text => {
+                    console.log('Heartbeat Raw:', text);
+                    try {
+                        const data = JSON.parse(text);
+                        if (data.status === 'success') {
+                            showToast('Success', 'Backend is REACHABLE! Click "RE-SYNC" to load data.',
+                                'success');
+                        } else {
+                            showToast('Protocol Error', 'Backend responded but with error: ' + text, 'warning');
+                        }
+                    } catch (e) {
+                        showToast('HTML/Proxy Response', 'Received non-JSON heartbeat. Check if script is Deployed as "Anyone".', 'error');
+                        console.error('Heartbeat Parse Error:', text);
+                    }
+                })
+                .catch(err => {
+                    showToast('Network Error', 'Could not reach script. Check URL and Firewall. ' +
+                        err.message, 'error');
+                });
+        }
+        window.addLog = function (action, msg) {
+            const entry = {
+                date: new Date().toLocaleString(),
+                action: action,
+                msg: msg
+            };
+            logs.unshift(entry);
+            if (logs.length > 200) logs.pop(); // Keep last 200
+            localStorage.setItem('logs', JSON.stringify(logs));
+        }
+
+        window.syncToSheet = function (action, assetData) {
+            if (!assetData) return;
+            const isGAS = typeof google !== 'undefined' && google.script && google.script.run;
+
+            showToast('Syncing...', 'Updating Sheets...', 'info');
+
+            const handleSuccess = function (raw) {
+                const res = typeof raw === 'string' ? JSON.parse(raw) : raw;
+                if (res && res.status === 'success') {
+                    showToast('Sync Success', res.message || 'Reflected on Google Sheet.', 'success');
+                } else if (res) {
+                    showToast('Sync Error', res.message || 'Sheet rejected the update.', 'error');
+                } else {
+                    console.warn('Sync received null response');
+                }
+            };
+
+            const handleFailure = function (err) {
+                showToast('Sync Failed', err.toString(), 'error');
+            };
+
+            if (isGAS) {
+                google.script.run
+                    .withSuccessHandler(handleSuccess)
+                    .withFailureHandler(handleFailure)
+                    .upsertAssetNative(assetData, currentUserRole);
+            } else {
+                fetch(GAS_API_URL, {
+                    method: 'POST',
+                    body: JSON.stringify(assetData)
+                })
+                    .then(r => r.json())
+                    .then(handleSuccess)
+                    .catch(err => {
+                        // Falls back to no-cors if restricted (User will see success but it's blind)
+                        fetch(GAS_API_URL, {
+                            method: 'POST', body: JSON.stringify(assetData), mode:
+                                'no-cors'
+                        })
+                            .then(() => showToast('Sync Success', 'Update pushed to Cloud', 'success'))
+                            .catch(e => showToast('Sync Failed', e.toString(), 'error'));
+                    });
+            }
+        }
+
+        function testSyncConnection() {
+            pullFromCloud();
+        }
+
+        // --- Component Swap Logic ---
+        function openCompSwapModal() {
+            const modal = document.getElementById('compSwapModal');
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                modal.classList.remove('opacity-0');
+                document.getElementById('compSwapContent').classList.remove('scale-95');
+            }, 10);
+            document.getElementById('swap-parent-id').value = '';
+            document.getElementById('swap-new-id').value = '';
+        }
+
+        function closeCompSwapModal() {
+            const modal = document.getElementById('compSwapModal');
+            modal.classList.add('opacity-0');
+            document.getElementById('compSwapContent').classList.add('scale-95');
+            setTimeout(() => modal.classList.add('hidden'), 300);
+        }
+
+        function performComponentSwap() {
+            const parentId = document.getElementById('swap-parent-id').value.trim();
+            const newId = document.getElementById('swap-new-id').value.trim();
+            const type = document.getElementById('swap-comp-type').value;
+
+            if (!parentId || !newId) { showToast('Error', 'IDs required', 'error'); return; }
+
+            // 1. Find Assets
+            const parent = assets.find(a => a && a.id && a.id.toLowerCase() ===
+                parentId.toLowerCase());
+            const newComp = assets.find(a => a && a.id && a.id.toLowerCase() ===
+                newId.toLowerCase());
+
+            // 2. Validate
+            if (!parent) { showToast('Error', 'Parent Asset not found', 'error'); return; }
+            if (!newComp) { showToast('Error', 'New Component not found', 'error'); return; }
+
+            if (!newComp.status.toLowerCase().includes('stock') && newComp.status.toLowerCase()
+                !== 'spare' && newComp.status.toLowerCase() !== 'available') {
+                showToast('Error', 'New Component is not In Stock (Status: ' + (newComp.status) + ')',
+                    'error');
+                return;
+            }
+
+            // 3. Define Field Mapping
+            const fieldMap = {
+                'mouse': { model: 'mouse', sn: 'sn_mouse', label: 'Mouse' },
+                'kb': { model: 'kb', sn: 'sn_kb', label: 'Keyboard' },
+                'mon_pri': { model: 'mon_pri', sn: 'sn_mon_pri', label: 'Pri Monitor' },
+                'mon_sec': { model: 'mon_sec', sn: 'sn_mon_sec', label: 'Sec Monitor' }
+            };
+            const map = fieldMap[type];
+
+            // 4. Archive OLD Component (Move REAL Asset to Scrap)
+            const oldSn = (parent[map.sn] || '').trim();
+            const oldModel = (parent[map.model] || '').trim();
+            if (oldSn) {
+                moveComponentToScrap(oldSn, map.label, parent, oldModel);
+            } else if (oldModel) {
+                // Fallback for parts with no serial but having model
+                const ghostId =
+                    (parent.id) + '-OLD-' + (type.toUpperCase()) + '-' + (Date.now().toString().slice(-4));
+                const ghostAsset = {
+                    id: ghostId,
+                    device_type: map.label,
+                    status: 'Scrap',
+                    serial_number: 'N/A',
+                    model: parent[map.model] || 'Unknown',
+                    location: 'SCRAP',
+                    brand: parent.brand || 'Unknown',
+                    assigned_to: parent.assigned_to || 'Unknown',
+                    machine_id: parent.id,
+                    deploy_date: new Date().toLocaleString()
+                };
+                assets.push(ghostAsset);
+                syncToSheet('ADD', ghostAsset);
+                addLog('SWAP-ARCHIVE', 'Archived ghost ' + (map.label) + ' from ' + (parent.id) + ' to Scrap.');
+            }
+
+            // 5. Update Parent with NEW Details
+            // We use the New Component's Model (if available, else Brand+Model?)
+            // Usually 'model' field on asset.
+            parent[map.model] = newComp.model || newComp.brand || 'Unknown';
+            parent[map.sn] = newComp.serial_number || newComp.id; // Use Serial, fallback to ID
+
+            syncToSheet('UPDATE', parent);
+
+            // 6. Update NEW Component Status (Consume Stock)
+            newComp.status = 'IN USE';
+            newComp.location = parent.id; // Track where it went
+            newComp.assigned_to = parent.assigned_to;
+            newComp.machine_id = parent.id;
+            newComp.deploy_date = new Date().toLocaleString();
+
+            syncToSheet('UPDATE', newComp);
+
+            // Log It
+            addLog('SWAP', 'Replaced ' + (map.label) + ' on ' + (parent.id) + ' with ' + (newComp.id));
+
+            saveAndRender();
+            closeCompSwapModal();
+            showToast('Success', 'Swapped ' + (map.label), 'success');
+        }
+
+        let currentPickerConfig = null;
+
+        function openStockPicker(category, targetIds) {
+            currentPickerConfig = { category, targetIds };
+            document.getElementById('pickerCategory').textContent = category;
+            document.getElementById('stockPickerModal').classList.remove('hidden');
+            document.getElementById('pickerSearch').value = '';
+            filterPickerList();
+        }
+
+        function closeStockPicker() {
+            document.getElementById('stockPickerModal').classList.add('hidden');
+            currentPickerConfig = null;
+        }
+
+        function filterPickerList() {
+            const list = document.getElementById('pickerList');
+            const search = document.getElementById('pickerSearch').value.toLowerCase();
+            list.innerHTML = '';
+
+            const available = assets.filter(a => {
+                if (!a || !a.id) return false;
+                const status = (a.status || '').toUpperCase();
+                const type = (a.device_type || '').toUpperCase();
+                const matchCat = type === currentPickerConfig.category.toUpperCase();
+                const isInStock = status === 'IN STOCK' || status === 'STOCK';
+                const matchSearch = (a.model || '').toLowerCase().includes(search) ||
+                    (a.serial_number || '').toLowerCase().includes(search);
+                return matchCat && isInStock && matchSearch;
+            });
+
+            if (available.length === 0) {
+                list.innerHTML = '<div class="p-8 text-center text-slate-500 text-sm">No\n                        ' + (currentPickerConfig.category) + ' in stock</div>';
+                return;
+            }
+
+            available.forEach(item => {
+                const div = document.createElement('div');
+                div.className = "p-3 bg-white/5 hover:bg-white/10 rounded-lg cursor-pointer border border - white / 5 transition - all group";
+                div.onclick = () => selectFromStock(item);
+                div.innerHTML = `
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <div class="text-[10px] text-orange-400 font-mono mb-1">${item.id}</div>
+                            <div class="text-white text-sm font-medium">${item.model || 'Unknown Model'}</div>
+                            <div class="text-slate-400 text-xs mt-1">SN: ${item.serial_number || 'N/A'}</div>
+                        </div>
+                        <div class="text-[10px] bg-green-500/20 text-green-400 px-1.5 rounded uppercase font-bold">
+                            In Stock</div>
+                    </div>
+                    <div class="text-[10px] text-slate-500 mt-2 flex gap-3">
+                        ${item.brand ? `<span>Brand: ${item.brand}</span>` : ''}
+                        ${item.location ? `<span>Loc: ${item.location}</span>` : ''}
+                    </div>
+                    `;
+                list.appendChild(div);
+            });
+        }
+
+        function selectFromStock(item) {
+            if (!currentPickerConfig) return;
+
+            // 1. Fill the UI fields
+            const modelInput = document.getElementById(currentPickerConfig.targetIds[0]);
+            const snInput = document.getElementById(currentPickerConfig.targetIds[1]);
+            const modelVal = item.model || '';
+            const snVal = item.serial_number || '';
+
+            if (modelInput) modelInput.value = modelVal;
+            if (snInput) snInput.value = snVal;
+
+            // 2. Mark the selected stock item as IN USE automatically
+            item.status = 'IN USE';
+            item.assigned_to = document.getElementById('inp-assigned') ?
+                document.getElementById('inp-assigned').value : 'Assigned from stock';
+
+            // 3. Track where it went (New Item Metadata)
+            const parentId = document.getElementById('inp-id') ?
+                document.getElementById('inp-id').value : 'N/A';
+            item.machine_id = parentId;
+            item.deploy_date = new Date().toLocaleString();
+
+            // 4. Instant Sync Parent & Scrap Old Part (New Logic)
+            if (editingId) {
+                const parent = assets.find(a => a.id === editingId);
+                if (parent) {
+                    let oldSn = '';
+                    let oldModel = '';
+
+                    // Mapping Logic Fix (Directly use key from elId)
+                    SCHEMA.forEach(field => {
+                        let elId = 'inp-' + (field.key);
+                        if (field.key === 'device_type') elId = 'inp-type';
+                        if (field.key === 'assigned_to') elId = 'inp-assigned';
+                        if (field.key === 'serial_number') elId = 'inp-serial';
+
+                        // Get keys for model and serial
+                        if (elId === currentPickerConfig.targetIds[0]) {
+                            oldModel = (parent[field.key] || '').trim();
+                            parent[field.key] = modelVal; // Update Model
+                        }
+                        if (elId === currentPickerConfig.targetIds[1]) {
+                            oldSn = (parent[field.key] || '').trim();
+                            parent[field.key] = snVal; // Update Serial Update
+                        }
+                    });
+
+                    // Archive the OLD part if it existed
+                    if (oldSn && oldSn !== snVal) {
+                        moveComponentToScrap(oldSn, currentPickerConfig.category, parent, oldModel);
+                        addLog('PICKER-SCRAP', 'Archived old ' + (currentPickerConfig.category) + ' (' + (oldSn) + ') from\n                    ' + (editingId) + ' to Scrap.');
+                    }
+
+                    // Sync the Parent PC
+                    syncToSheet('UPDATE', parent);
+                    addLog('INSTANT-SYNC', 'Updated ' + (currentPickerConfig.category) + ' on parent\n                    ' + (editingId) + ' instantly.');
+                }
+            }
+
+            // 5. Log and Sync the NEW component itself (moves to Deployed)
+            addLog('STOCK-ALLOCATE', 'Allocated ' + (item.device_type) + ' (' + (item.id) + ') from stock');
+            syncToSheet('UPDATE', item);
+
+            closeStockPicker();
+            const catName = (currentPickerConfig && currentPickerConfig.category) ? currentPickerConfig.category : 'Asset';
+showToast('Stock Selected', 'Updated ' + catName + ' and marked item\n as IN USE', 'success');
+            saveAndRender();
+        }
+
+        function moveComponentToScrap(serial, type, parentAsset, model) {
+            if (!serial) return;
+
+            // Create a HISTORY entry (Always ADD to Scrap_History)
+            const scrapEntry = {
+                machine_id: parentAsset.id,
+                assigned_to: parentAsset.assigned_to || 'N/A',
+                device_type: type,
+                model: model || 'N/A',
+                serial_number: serial,
+                status: 'Scrap',
+                location: 'SCRAP',
+                deploy_date: new Date().toLocaleString()
+            };
+
+            // Log this specifically to the Scrap History sheet
+            syncToSheet('SCRAP_LOG', scrapEntry);
+            addLog('SCRAP-HISTORY', 'Added history log for ' + (type) + ' (' + (serial) + ') to Scrap.');
+
+            // Also, if a REAL asset exists for this part, update its status alone
+            const realAsset = assets.find(a =>
+                (a.serial_number || '').trim().toLowerCase() === serial.trim().toLowerCase() &&
+                (a.device_type || '').trim().toLowerCase() === type.trim().toLowerCase()
+            );
+
+            if (realAsset) {
+                realAsset.status = 'Scrap';
+                realAsset.location = 'SCRAP';
+                syncToSheet('UPDATE', realAsset);
+                addLog('REAL-SCRAP', 'Updated REAL asset ' + (realAsset.id) + ' (' + (type) + ') status to\n                    Scrap.');
+            }
+        }
+
+        window.showToast = function (title, msg, type) {
+            const t = document.getElementById('toast');
+            document.getElementById('toast-title').textContent = title;
+            document.getElementById('toast-msg').textContent = msg;
+            t.classList.remove('translate-y-20', 'opacity-0');
+            setTimeout(() => t.classList.add('translate-y-20', 'opacity-0'), 3000);
+        }
+
+        // --- Billing & ISP Logic ---
+        function handleBillSelect(input) {
+            const file = input.files[0];
+            if (!file) return;
+            document.getElementById('file-status').textContent = "Uploading: " + file.name +
+                "...";
+
+            const fileName = file.name;
+            const inputEl = input;
+
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                const base64 = e.target.result;
+                const payload = { action: 'upload', base64: base64, fileName: fileName };
+                inputEl.value = ''; // Ensure it's cleared after reading
+                const isGAS = typeof google !== 'undefined' && google.script && google.script.run;
+                const previewBtn = document.getElementById('bill-preview-btn');
+                const removeBtn = document.getElementById('btn-remove-bill');
+
+                showToast('Uploading Bill', 'Connecting to Google Drive...', 'info');
+
+                const handleSuccess = function (res) {
+                    const data = typeof res === 'string' ? JSON.parse(res) : res;
+                    if (data.status === 'success') {
+                        document.getElementById('inp-bill_link').value = data.url;
+                        document.getElementById('file-status').textContent = "Attached: " + file.name;
+                        if (previewBtn) previewBtn.classList.remove('hidden');
+                        if (removeBtn) removeBtn.classList.remove('hidden');
+                        showToast('Success', 'Bill uploaded to Drive!', 'success');
+                    } else {
+                        showToast('Error', 'Upload failed: ' + (data.message || 'Unknown error'), 'error');
+                        document.getElementById('file-status').textContent = "Select Bill";
+                    }
+                };
+
+                const handleFailure = function (err) {
+                    showToast('Upload Failed', err.toString(), 'error');
+                    document.getElementById('file-status').textContent = "Select Bill";
+                };
+
+                if (isGAS) {
+                    google.script.run
+                        .withSuccessHandler(handleSuccess)
+                        .withFailureHandler(handleFailure)
+                        .doPost(payload);
+                } else {
+                    fetch(GAS_API_URL, {
+                        method: 'POST',
+                        body: JSON.stringify(payload)
+                    })
+                        .then(r => r.json())
+                        .then(handleSuccess)
+                        .catch(err => {
+                            fetch(GAS_API_URL, {
+                                method: 'POST', body: JSON.stringify(payload), mode: 'no-cors'
+                            })
+                                .then(() => {
+                                    showToast('Success', 'Upload sent to Cloud', 'success');
+                                    document.getElementById('file-status').textContent = "Sent to Cloud";
+                                })
+                                .catch(e => handleFailure(e));
+                        });
+                }
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function removeBill() {
+            const pin = prompt("Enter Admin PIN to remove bill attachment:");
+            if (pin === '1234') {
+                document.getElementById('inp-bill_link').value = '';
+                document.getElementById('file-status').textContent = "Select Bill";
+                document.getElementById('bill-preview-btn').classList.add('hidden');
+                const fileInput = document.getElementById('inp-file-upload');
+                if (fileInput) fileInput.value = '';
+                showToast('Bill Removed', 'Attachment link cleared. Save asset to persist.',
+                    'info');
+            } else if (pin !== null) {
+                showToast('Access Denied', 'Invalid PIN!', 'error');
+            }
+        }
+
+        window.renderISP = function () {
+            const list = document.getElementById('isp-list');
+            list.innerHTML = '';
+            const lines = assets.filter(a => a.sheetName === 'Internet_Lines');
+
+            if (lines.length === 0) {
+                list.innerHTML = '<div class="glass-card p-10 text-center text-slate-500 font-medium rounded-2xl">No Internet Lines added yet.</div > ';
+                return;
+            }
+
+            lines.forEach(line => {
+                const expiry = new Date(line.warranty_expiry || '');
+                const today = new Date();
+                const diff = (expiry - today) / (1000 * 60 * 60 * 24);
+                let statusClass = 'bg-green-500/10 text-green-400 border-green-500/20';
+                if (diff < 0) {
+                    statusClass = 'bg-red-500/10 text-red-400 border-red-500/20 animate-pulse';
+                } else if (diff < 30) {
+                    statusClass = 'bg-orange-500/10 text-orange-400 border-orange-500/20';
+                }
+                const card = document.createElement('div');
+                card.className = "glass-card p-6 rounded-2xl border-l-4 border-l-blue-500 flex flex-col md:flex-row justify-between items-center gap-6";
+                card.innerHTML = `
+    <div class="flex items-center gap-4">
+        <div class="w-12 h-12 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-400">
+            <i class="ri-router-line text-2xl"></i>
+        </div>
+        <div>
+            <h4 class="text-white font-bold text-lg">${line.isp_name || 'Generic ISP'}</h4>
+            <p class="text-xs text-slate-400">${line.account_id || 'N/A'} | ${line.plan_speed || 'N/A'}</p>
+        </div>
+    </div>
+    <div class="flex items-center gap-8">
+        <div class="text-center">
+            <p class="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Annual Price</p>
+            <p class="text-white font-bold">₹${line.price || '0'}</p>
+        </div>
+        <div class="text-center">
+            <p class="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Renewal Date</p>
+            <p class="text-white font-bold">${line.warranty_expiry || 'N/A'}</p>
+        </div>
+        <div class="px-3 py-1 rounded-full border ${statusClass} text-[10px] font-bold uppercase tracking-widest">
+            ${diff < 0 ? 'Expired' : (diff < 30 ? 'Expiring Soon' : 'Active')}
+        </div>
+    </div>
+    <div class="flex gap-2">
+        ${line.bill_link ? `<button onclick="window.open('${line.bill_link}', '_blank')"
+            class="p-2 bg-blue-600/10 text-blue-400 rounded-lg border border-blue-500/20 hover:bg-blue-600 hover:text-white transition-all"><i
+                class="ri-file-text-line"></i> View Bill</button>` : ''}
+        <button onclick="editAsset('${line.id}')"
+            class="p-2 bg-white/5 text-slate-300 rounded-lg hover:bg-white/10 transition-all font-medium">Edit / Renew</button>
+    </div>
+    `;
+                list.appendChild(card);
+            });
+        }
+
+        function openAddModalForISP() {
+            openAddModalAndReset();
+            document.getElementById('inp-type').value = 'INTERNET LINE';
+            document.getElementById('inp-status').value = 'IN USE';
+            // We need to set sheetName manually for ISP
+            editingSheet = 'Internet_Lines';
+            document.getElementById('modal-title').textContent = 'Add ISP Line';
+            // Pre-fill ID
+            document.getElementById('inp-id').value = 'ISP-' + (assets.filter(a =>
+                a.id.includes('ISP')).length + 1);
+            toggleFormFields();
+        }
+
+        function checkBackendHealth() {
+            showToast('Checking...', 'Verifying connection to Google Sheets...',
+                'info');
+            const isGAS = typeof google !== 'undefined' && google.script &&
+                google.script.run;
+
+            const handleSuccess = function (res) {
+                const data = typeof res === 'string' ? JSON.parse(res) : res;
+                if (data.status === 'success') {
+                    const msg = 'Connected! Backend Version: 6.1. Detected Sheets:\n                            ' + (data.sheets.join(', '));
+                    alert(msg);
+                    showToast('Backend Online', 'Connection verified.', 'success');
+                } else {
+                    showToast('Backend Error', data.message || 'Unknown error', 'error');
+                }
+            };
+
+            const handleFailure = function (err) {
+                alert("Connection Failed: " + err.toString());
+                showToast('System Offline', 'Could not reach Google Script.', 'error');
+            };
+
+            if (isGAS) {
+                google.script.run.withSuccessHandler(handleSuccess).withFailureHandler(handleFailure).debugConnection();
+            } else {
+                const cleanUrl = (GAS_API_URL || '').trim().replace(/\/$/, "");
+                fetch(cleanUrl + '?action=debug')
+                    .then(r => r.json())
+                    .then(handleSuccess)
+                    .catch(e => handleFailure(e));
+            }
+        }
+
+        // Init
+        try {
+            console.log('Starting Initial Cloud Pull...');
+            pullFromCloud();
+        } catch (initErr) {
+            console.error('Initial Cloud Pull Failed:', initErr);
+        }
+
+        // Background Sync (Every 60 Seconds)
+        setInterval(() => {
+            try {
+                pullFromCloud(true);
+            } catch (syncErr) {
+                console.error('Background Sync Error:', syncErr);
+            }
+        }, 60000);
+    </script>
+
+
+
+    <!-- Developer Credit Footer -->
+    <div class="fixed bottom-0 left-0 right-0 bg-slate-950/80 backdrop-blur-sm border-t border-white/5 py-2 px-4 z-50">
+        <div class="flex items-center justify-between max-w-7xl mx-auto">
+            <div class="flex items-center gap-2">
+                <i class="ri-code-s-slash-line text-blue-400 text-sm"></i>
+                <span class="text-[10px] text-slate-400">Developed by <span class="text-blue-400 font-semibold">Manish
+                        Teli</span></span>
+            </div>
+
+
+
+            <div class="flex items-center gap-4 text-[10px] text-slate-500">
+                <span>Envision Inventory ERP v1.0</span>
+                <span class="hidden md:inline">Enterprise Asset Management
+                    System</span>
+            </div>
+        </div>
+    </div>
+
+</body>
+
+
+</html>
